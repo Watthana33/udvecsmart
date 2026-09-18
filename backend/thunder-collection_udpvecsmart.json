@@ -1,0 +1,123 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "UDPVECSmart APIs",
+  "collectionId": "udpvecsmart-collection-2026",
+  "dateExported": "2026-09-18",
+  "version": "1.1",
+  "folders": [
+    {
+      "containerId": "",
+      "sortNum": 10000,
+      "name": "1. Public APIs (ไม่ต้องล็อกอิน)"
+    },
+    {
+      "containerId": "",
+      "sortNum": 20000,
+      "name": "2. Auth APIs (ระบบล็อกอิน & บัตรผ่าน)"
+    }
+  ],
+  "requests": [
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 10000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.1 ดึงการตั้งค่าระบบ (Settings)",
+      "url": "http://localhost:5000/api/settings/public",
+      "method": "GET"
+    },
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 20000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.2 สถิติภาพรวมทั้งจังหวัด (Stats Overview)",
+      "url": "http://localhost:5000/api/stats/overview",
+      "method": "GET"
+    },
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 30000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.3 รายชื่อวิทยาลัยทั้งหมด (All Institutions)",
+      "url": "http://localhost:5000/api/institutions",
+      "method": "GET"
+    },
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 40000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.4 กรองเฉพาะวิทยาลัยรัฐบาล (Public)",
+      "url": "http://localhost:5000/api/institutions?type=PUBLIC",
+      "method": "GET"
+    },
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 50000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.5 ค้นหาวิทยาลัยด้วยคำว่า 'เทคนิค'",
+      "url": "http://localhost:5000/api/institutions?search=เทคนิค",
+      "method": "GET"
+    },
+    {
+      "containerId": "1. Public APIs (ไม่ต้องล็อกอิน)",
+      "sortNum": 60000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "1.6 ข่าวประชาสัมพันธ์ (News List)",
+      "url": "http://localhost:5000/api/news",
+      "method": "GET"
+    },
+    {
+      "containerId": "2. Auth APIs (ระบบล็อกอิน & บัตรผ่าน)",
+      "sortNum": 10000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "2.1 Login Super Admin (สอจ.อุดรธานี)",
+      "url": "http://localhost:5000/api/auth/login",
+      "method": "POST",
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"admin@udpvec.go.th\",\n  \"password\": \"Password@1234\"\n}"
+      }
+    },
+    {
+      "containerId": "2. Auth APIs (ระบบล็อกอิน & บัตรผ่าน)",
+      "sortNum": 20000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "2.2 Login School Admin (วท.อุดรธานี)",
+      "url": "http://localhost:5000/api/auth/login",
+      "method": "POST",
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"admin.udtech@udpvec.go.th\",\n  \"password\": \"Password@1234\"\n}"
+      }
+    },
+    {
+      "containerId": "2. Auth APIs (ระบบล็อกอิน & บัตรผ่าน)",
+      "sortNum": 30000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "2.3 Login รหัสผิด (ทดสอบ 401 Unauthorized)",
+      "url": "http://localhost:5000/api/auth/login",
+      "method": "POST",
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"admin@udpvec.go.th\",\n  \"password\": \"WrongPass!\"\n}"
+      }
+    },
+    {
+      "containerId": "2. Auth APIs (ระบบล็อกอิน & บัตรผ่าน)",
+      "sortNum": 40000,
+      "headers": [],
+      "colId": "udpvecsmart-collection-2026",
+      "name": "2.4 ดูโปรไฟล์ตัวเอง (Get Me - ต้องใส่ Bearer Token ในแท็บ Auth)",
+      "url": "http://localhost:5000/api/auth/me",
+      "method": "GET"
+    }
+  ]
+}

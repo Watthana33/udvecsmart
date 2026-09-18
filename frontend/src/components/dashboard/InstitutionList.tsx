@@ -49,6 +49,15 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ title: string; desc: string; type: 'success' | 'error' } | null>(null);
 
+  // State สำหรับดูภาพถ่ายผู้บริหารขนาดใหญ่ (Hover บนคอม / คลิกบนมือถือ)
+  const [enlargedDirector, setEnlargedDirector] = useState<{
+    name: string;
+    position: string;
+    instName: string;
+    photoUrl: string;
+  } | null>(null);
+
+
   const openEditModal = (inst: Institution) => {
     setEditingInst(inst);
     const p = inst.personnels?.[0];
@@ -273,14 +282,29 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
 
                   {/* Director Profile Section with Photo Frame (พื้นที่สำหรับใส่ภาพผู้บริหาร) */}
                   <div className="bg-gradient-to-br from-slate-50 to-slate-100/80 p-3 rounded-2xl border border-slate-200/80 mb-3 flex items-center gap-3">
-                    {/* Portrait Photo Frame */}
-                    <div className="relative shrink-0">
-                      <div className="w-16 h-20 rounded-xl overflow-hidden bg-white border-2 border-white shadow-sm flex items-center justify-center">
+                    {/* Portrait Photo Frame with Auto-Scale & Hover Zoom */}
+                    <div className="relative shrink-0 group/director">
+                      <div 
+                        onClick={() => {
+                          if (directorPhoto) {
+                            setEnlargedDirector({
+                              name: director,
+                              position: directorPersonnel?.position || `ผู้อำนวยการ${inst.name.replace('วิทยาลัย', 'ว.')}`,
+                              instName: inst.name,
+                              photoUrl: directorPhoto,
+                            });
+                          }
+                        }}
+                        className={`w-16 h-20 sm:w-18 sm:h-22 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 ${
+                          directorPhoto ? 'cursor-pointer hover:shadow-md hover:ring-2 hover:ring-[#932d16]/30' : ''
+                        }`}
+                        title={directorPhoto ? "คลิก/แตะ เพื่อดูภาพขนาดใหญ่" : undefined}
+                      >
                         {directorPhoto ? (
                           <img
                             src={directorPhoto}
                             alt={director}
-                            className="w-full h-full object-cover object-top"
+                            className="w-full h-full object-cover object-top transition-transform duration-300 group-hover/director:scale-105"
                           />
                         ) : (
                           <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-1 text-center">
@@ -291,17 +315,42 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                           </div>
                         )}
                       </div>
-                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#932d16] text-white flex items-center justify-center text-[10px] shadow border border-white">
+                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#932d16] text-white flex items-center justify-center text-[10px] shadow border border-white z-10 pointer-events-none">
                         <UserCheck className="w-3 h-3" />
                       </span>
                       {canEdit && (
                         <button
-                          onClick={() => openEditModal(inst)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(inst);
+                          }}
                           title="อัปโหลด/เปลี่ยนภาพผู้บริหาร"
-                          className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center shadow-md border border-white transition-all transform hover:scale-110 z-10"
+                          className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center shadow-md border border-white transition-all transform hover:scale-110 z-20 cursor-pointer"
                         >
                           <Camera className="w-3 h-3" />
                         </button>
+                      )}
+
+                      {/* Desktop Hover Floating Zoom Card (เด้งภาพขนาดใหญ่เมื่อเอาเมาส์ไปวาง) */}
+                      {directorPhoto && (
+                        <div className="hidden lg:block absolute left-full ml-3 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover/director:opacity-100 group-hover/director:pointer-events-auto transition-all duration-200 z-30 w-48 p-2.5 bg-white rounded-2xl shadow-2xl border border-slate-200 text-center animate-in fade-in zoom-in-95">
+                          <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner mb-2">
+                            <img
+                              src={directorPhoto}
+                              alt={director}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                          <div className="text-xs font-extrabold text-slate-900 leading-tight truncate" title={director}>
+                            {director}
+                          </div>
+                          <div className="text-[10px] text-[#932d16] font-bold mt-0.5 truncate">
+                            {directorPersonnel?.position || 'ผู้อำนวยการวิทยาลัย'}
+                          </div>
+                          <span className="inline-block text-[9px] text-slate-400 mt-1 bg-slate-100 px-2 py-0.5 rounded-full">
+                            คลิกเพื่อดูภาพขนาดเต็ม
+                          </span>
+                        </div>
                       )}
                     </div>
 
@@ -538,6 +587,54 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Full-scale Director Photo Lightbox (แตะบนมือถือเพื่อเด้งภาพใหญ่ หรือคลิกบนคอม) */}
+      {enlargedDirector && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300"
+          onClick={() => setEnlargedDirector(null)}
+        >
+          <div
+            className="bg-white rounded-3xl overflow-hidden shadow-2xl max-w-sm w-full border border-white/20 p-5 flex flex-col items-center relative space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setEnlargedDirector(null)}
+              className="absolute top-3.5 right-3.5 p-1.5 rounded-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 transition-colors cursor-pointer shadow-sm"
+              title="ปิดหน้าต่าง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Institution Badge */}
+            <div className="text-center pt-1 px-6">
+              <span className="text-[11px] font-bold text-[#932d16] bg-[#932d16]/10 px-3 py-1 rounded-full border border-[#932d16]/20">
+                {enlargedDirector.instName}
+              </span>
+            </div>
+
+            {/* Full Auto-Scale Director Photo */}
+            <div className="w-full max-w-[280px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border-2 border-slate-200 bg-slate-100 flex items-center justify-center">
+              <img
+                src={enlargedDirector.photoUrl}
+                alt={enlargedDirector.name}
+                className="w-full h-full object-contain sm:object-cover object-top"
+              />
+            </div>
+
+            {/* Director Info */}
+            <div className="text-center space-y-1 pb-1">
+              <h4 className="text-base font-black text-slate-900 leading-snug">
+                {enlargedDirector.name}
+              </h4>
+              <p className="text-xs font-bold text-[#932d16]">
+                {enlargedDirector.position}
+              </p>
+            </div>
           </div>
         </div>
       )}

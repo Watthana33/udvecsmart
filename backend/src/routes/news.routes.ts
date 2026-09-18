@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getNewsList, getNewsById, createNews, deleteNews } from '../controllers/news.controller.js';
+import { getNewsList, getNewsById, createNews, deleteNews, reorderNews } from '../controllers/news.controller.js';
 import { authenticateJWT, requireRole } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
 
@@ -7,6 +7,9 @@ const router = Router();
 
 // GET /api/news - รายการข่าวสาร (รองรับ ?category=, ?page=, ?limit=)
 router.get('/', getNewsList);
+
+// PUT /api/news/reorder - ปรับลำดับการแสดงผลของข่าวสาร (เฉพาะ Super Admin)
+router.put('/reorder', authenticateJWT, requireRole([Role.SUPER_ADMIN]), reorderNews);
 
 // GET /api/news/:id - รายละเอียดข่าว และเพิ่มยอดวิวอัตโนมัติ
 router.get('/:id', getNewsById);

@@ -143,6 +143,13 @@ export async function deleteNews(id: string): Promise<void> {
   await api.delete(`/news/${id}`);
 }
 
+// Super Admin: ปรับลำดับข่าวสาร
+export async function reorderNews(orderedIds: string[]): Promise<any> {
+  const res = await api.put('/news/reorder', { orderedIds });
+  return res.data;
+}
+
+
 // อัปเดตข้อมูลผู้บริหาร / ภาพถ่าย / ข้อมูลติดต่อของวิทยาลัย
 export async function updateInstitutionDirector(
   id: string,

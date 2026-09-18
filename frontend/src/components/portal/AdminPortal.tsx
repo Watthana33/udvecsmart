@@ -18,6 +18,7 @@ import {
   createAcademicPeriod,
   deleteAcademicPeriod,
   setCurrentAcademicPeriod,
+  reorderNews,
 } from '../../services/api';
 import {
   ShieldCheck,
@@ -44,6 +45,8 @@ import {
   Plus,
   Trash2,
   Star,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 interface AdminPortalProps {
@@ -545,6 +548,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
       showToast('success', 'ลบข่าวสำเร็จ', 'ข่าวประชาสัมพันธ์ถูกนำออกจากระบบแล้ว');
     } catch (err: any) {
       showToast('error', 'ลบข่าวไม่สำเร็จ', err.response?.data?.message || err.message);
+    }
+  };
+
+  // Super Admin: Move News Up / Down
+  const handleMoveNews = async (index: number, direction: 'UP' | 'DOWN') => {
+    const targetIndex = direction === 'UP' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newsList.length) return;
+
+    const updatedList = [...newsList];
+    const [movedItem] = updatedList.splice(index, 1);
+    updatedList.splice(targetIndex, 0, movedItem);
+
+    setNewsList(updatedList);
+
+    try {
+      const orderedIds = updatedList.map((item) => item.id);
+      await reorderNews(orderedIds);
+      showToast('success', 'ปรับลำดับข่าวสำเร็จ', `ย้าย "${movedItem.title}" ไปลำดับที่ ${targetIndex + 1} แล้ว`);
+      onRefreshStats();
+    } catch (err: any) {
+      showToast('error', 'ปรับลำดับข่าวไม่สำเร็จ', err.response?.data?.message || err.message);
+      loadNewsData();
     }
   };
 
@@ -1154,7 +1179,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
                         </td>
                         <td className="py-3 px-4 font-bold text-slate-900 max-w-xs truncate">{item.title}</td>
                         <td className="py-3 px-4 text-slate-500 max-w-xs truncate">{item.content}</td>
-                        <td className="py-3 px-4 text-center font-bold text-slate-600">{idx + 1}</td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                            <span className="font-extrabold text-slate-700 min-w-[14px] text-center text-xs">
+                              {idx + 1}
+                            </span>
+                            <div className="flex flex-col gap-0.5 ml-1">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveNews(idx, 'UP')}
+                                disabled={idx === 0}
+                                className="p-0.5 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                                title="เลื่อนขึ้น (แสดงก่อน)"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveNews(idx, 'DOWN')}
+                                disabled={idx === newsList.length - 1}
+                                className="p-0.5 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                                title="เลื่อนลง"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-center">
                           <button
                             onClick={() => handleDeleteNews(item.id, item.title)}

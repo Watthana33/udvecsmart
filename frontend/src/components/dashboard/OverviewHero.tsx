@@ -64,10 +64,24 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
             {isLoading ? (
               <div className="w-full h-full min-h-[220px] bg-slate-200/70 rounded-2xl animate-pulse" />
             ) : currentNews ? (
-              <div className="w-full bg-gradient-to-br from-[#932d16] via-[#7d2511] to-[#591708] rounded-2xl p-6 text-white shadow-md flex flex-col justify-between relative overflow-hidden border border-[#932d16]/40">
-                {/* Background ambient lighting */}
-                <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="w-full bg-[#591708] rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col justify-between relative overflow-hidden border border-[#932d16]/40 min-h-[200px]">
+                
+                {/* Dynamic Background: Backdrop photo with dark gradient overlay if available, else classic gradient */}
+                {currentNews.coverImageUrl ? (
+                  <>
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center transition-all duration-700 transform scale-105"
+                      style={{ backgroundImage: `url(${currentNews.coverImageUrl})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-[#591708]/60 backdrop-blur-[1.5px]" />
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#932d16] via-[#7d2511] to-[#591708]" />
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+                  </>
+                )}
 
                 {/* Top: News Badge & Controls */}
                 <div className="relative z-10 flex items-center justify-between gap-3">
@@ -107,11 +121,28 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
                   </div>
                 </div>
 
-                {/* Middle: Prominent News Headline (แยกเป็นลักษณะหัวข้อข่าวตามที่ขอ) */}
-                <div className="relative z-10 my-auto py-3">
-                  <h3 className="text-lg sm:text-xl font-bold text-white leading-snug drop-shadow-sm hover:text-amber-200 transition-colors line-clamp-2">
-                    {currentNews.title}
-                  </h3>
+                {/* Middle: Prominent Headline & 16:9 Thumbnail Photo Box */}
+                <div className="relative z-10 my-auto py-2.5 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <h3 className="text-base sm:text-lg font-black text-white leading-snug drop-shadow hover:text-amber-200 transition-colors line-clamp-2">
+                      {currentNews.title}
+                    </h3>
+                    {currentNews.content && (
+                      <p className="text-xs text-slate-200/80 line-clamp-2 leading-relaxed">
+                        {currentNews.content}
+                      </p>
+                    )}
+                  </div>
+
+                  {currentNews.coverImageUrl && (
+                    <div className="w-24 sm:w-32 aspect-[16/9] rounded-xl overflow-hidden border border-white/20 shadow-md bg-slate-900 shrink-0 group">
+                      <img
+                        src={currentNews.coverImageUrl}
+                        alt={currentNews.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Bottom: Meta Info & Dots */}

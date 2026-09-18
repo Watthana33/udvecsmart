@@ -23,7 +23,7 @@ export async function getNewsList(req: Request, res: Response): Promise<void> {
       whereCondition.category = category as NewsCategory;
     }
 
-    const [total, newsList] = await Promise.all([
+    const [total, rawNewsList] = await Promise.all([
       prisma.news.count({ where: whereCondition }),
       prisma.news.findMany({
         where: whereCondition,
@@ -46,6 +46,29 @@ export async function getNewsList(req: Request, res: Response): Promise<void> {
         orderBy: { createdAt: 'desc' },
       }),
     ]);
+
+    // Check custom news order from SiteSetting
+    let newsList = [...rawNewsList];
+    try {
+      const orderSetting = await prisma.siteSetting.findUnique({
+        where: { key: 'news_order' },
+      });
+      if (orderSetting?.value) {
+        const orderedIds: string[] = JSON.parse(orderSetting.value);
+        if (Array.isArray(orderedIds) && orderedIds.length > 0) {
+          newsList.sort((a, b) => {
+            const indexA = orderedIds.indexOf(a.id);
+            const indexB = orderedIds.indexOf(b.id);
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to sort news by news_order:', e);
+    }
 
     res.json({
       status: 'success',
@@ -198,4 +221,45 @@ export async function deleteNews(req: AuthRequest, res: Response): Promise<void>
     });
   }
 }
+
+/**
+ * ปรับลำดับการแสดงผลของข่าวสาร (เฉพาะ SUPER_ADMIN)
+ * PUT /api/news/reorder
+ */
+export async function reorderNews(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณาระบุ orderedIds เป็นอาร์เรย์ของ ID ข่าวสาร',
+      });
+      return;
+    }
+
+    await prisma.siteSetting.upsert({
+      where: { key: 'news_order' },
+      update: { value: JSON.stringify(orderedIds) },
+      create: {
+        key: 'news_order',
+        value: JSON.stringify(orderedIds),
+        description: 'ลำดับการแสดงผลของข่าวสาร',
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'ปรับปรุงลำดับการแสดงผลข่าวสารสำเร็จ',
+      data: orderedIds,
+    });
+  } catch (error: any) {
+    console.error('reorderNews error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถปรับลำดับข่าวสารได้',
+      detail: error.message,
+    });
+  }
+}
+
 

@@ -170,6 +170,9 @@ export interface SubmissionStatusItem {
   isSubmitted: boolean;
   totalStudents: number;
   totalExecutives: number;
+  vocCertCount: number;
+  highVocCertCount: number;
+  bachelorCount: number;
   maleStudents: number;
   femaleStudents: number;
   totalTeachers: number;

@@ -165,6 +165,10 @@ export function App() {
             loading={loadingInstitutions}
             selectedInstitutionId={selectedInstitutionId}
             onSelectInstitution={handleSelectInstitution}
+            currentUser={user}
+            onRefreshInstitutions={() => {
+              getInstitutions().then((res) => setInstitutions(res.data)).catch(console.error);
+            }}
           />
         )}
 

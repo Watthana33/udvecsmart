@@ -76,42 +76,66 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
     );
   }
 
-  // 1. Data for Grade Level Bar Chart (ปวช.1-3, ปวส.1-2, ทล.บ.) แยก 2 สี รัฐบาล vs เอกชน
+  // 1. Data for Grade Level Bar Chart (ปวช.1-3, ปวส.1-2, ทล.บ.)
   const gradeLabels = ['ปวช.1', 'ปวช.2', 'ปวช.3', 'ปวส.1', 'ปวส.2', 'ปริญญาตรี (ทล.บ.)'];
   const pubGrades = stats.bySectorGrades.public;
   const privGrades = stats.bySectorGrades.private;
 
-  const gradeChartData = {
-    labels: gradeLabels,
-    datasets: [
-      {
-        label: 'สถานศึกษารัฐบาล',
-        data: [
-          pubGrades.vocCert1,
-          pubGrades.vocCert2,
-          pubGrades.vocCert3,
-          pubGrades.highVocCert1,
-          pubGrades.highVocCert2,
-          pubGrades.bachelor,
+  const isFiltered = Boolean(stats.selectedInstitutionId && stats.selectedInstitutionId !== 'ALL');
+  const selectedInstName = isFiltered
+    ? institutionStats.find((i) => i.institution.id === stats.selectedInstitutionId)?.institution.name || 'สถานศึกษาที่เลือก'
+    : null;
+
+  const gradeChartData = isFiltered
+    ? {
+        labels: gradeLabels,
+        datasets: [
+          {
+            label: selectedInstName || 'จำนวนนักเรียนตามระดับชั้น',
+            data: [
+              stats.students.byGrade.vocCert1,
+              stats.students.byGrade.vocCert2,
+              stats.students.byGrade.vocCert3,
+              stats.students.byGrade.highVocCert1,
+              stats.students.byGrade.highVocCert2,
+              stats.students.byGrade.bachelor,
+            ],
+            backgroundColor: '#7c3aed',
+            borderRadius: 6,
+          },
         ],
-        backgroundColor: '#7c3aed',
-        borderRadius: 6,
-      },
-      {
-        label: 'สถานศึกษาเอกชน',
-        data: [
-          privGrades.vocCert1,
-          privGrades.vocCert2,
-          privGrades.vocCert3,
-          privGrades.highVocCert1,
-          privGrades.highVocCert2,
-          privGrades.bachelor,
+      }
+    : {
+        labels: gradeLabels,
+        datasets: [
+          {
+            label: 'สถานศึกษารัฐบาล',
+            data: [
+              pubGrades.vocCert1,
+              pubGrades.vocCert2,
+              pubGrades.vocCert3,
+              pubGrades.highVocCert1,
+              pubGrades.highVocCert2,
+              pubGrades.bachelor,
+            ],
+            backgroundColor: '#7c3aed',
+            borderRadius: 6,
+          },
+          {
+            label: 'สถานศึกษาเอกชน',
+            data: [
+              privGrades.vocCert1,
+              privGrades.vocCert2,
+              privGrades.vocCert3,
+              privGrades.highVocCert1,
+              privGrades.highVocCert2,
+              privGrades.bachelor,
+            ],
+            backgroundColor: '#0284c7',
+            borderRadius: 6,
+          },
         ],
-        backgroundColor: '#0284c7',
-        borderRadius: 6,
-      },
-    ],
-  };
+      };
 
   // 2. Data for Horizontal Bar Chart (นักเรียน ชาย-หญิง ของแต่ละวิทยาลัย)
   // ตัดแสดงเฉพาะวิทยาลัยที่มีข้อมูล (จัดเรียงตามจำนวนนักเรียน)

@@ -143,3 +143,83 @@ export async function deleteNews(id: string): Promise<void> {
   await api.delete(`/news/${id}`);
 }
 
+// อัปเดตข้อมูลผู้บริหาร / ภาพถ่าย / ข้อมูลติดต่อของวิทยาลัย
+export async function updateInstitutionDirector(
+  id: string,
+  data: {
+    directorName?: string;
+    position?: string;
+    photoUrl?: string;
+    phone?: string;
+    website?: string;
+    address?: string;
+    programsCount?: number;
+  }
+): Promise<any> {
+  const res = await api.patch(`/institutions/${id}/director`, data);
+  return res.data;
+}
+
+// Super Admin: เพิ่มสถานศึกษาใหม่
+export async function createInstitution(data: {
+  code: string;
+  name: string;
+  type: 'PUBLIC' | 'PRIVATE';
+  directorName?: string;
+  phone?: string;
+  website?: string;
+  address?: string;
+  programsCount?: number;
+}): Promise<any> {
+  const res = await api.post('/institutions', data);
+  return res.data;
+}
+
+// Super Admin: บันทึกการตั้งค่าเปิด-ปิดรายหมวด & แสงกระพริบ
+export async function updateSubmissionPermissions(data: {
+  allowSectionGeneral: boolean;
+  allowSectionGrades: boolean;
+  allowSectionGraduates: boolean;
+  glowSection: string;
+}): Promise<any> {
+  const res = await api.put('/settings/submission-permissions', data);
+  return res.data;
+}
+
+// Super Admin: จัดการผู้ใช้งาน
+export async function getUsers(): Promise<any[]> {
+  const res = await api.get('/users');
+  return res.data.data;
+}
+
+export async function createUser(data: {
+  email: string;
+  password: string;
+  fullName: string;
+  role: 'SUPER_ADMIN' | 'SCHOOL_ADMIN';
+  institutionId?: string;
+}): Promise<any> {
+  const res = await api.post('/users', data);
+  return res.data;
+}
+
+export async function updateUser(
+  id: string,
+  data: {
+    email?: string;
+    password?: string;
+    fullName?: string;
+    role?: 'SUPER_ADMIN' | 'SCHOOL_ADMIN';
+    institutionId?: string;
+  }
+): Promise<any> {
+  const res = await api.put(`/users/${id}`, data);
+  return res.data;
+}
+
+export async function deleteUser(id: string): Promise<any> {
+  const res = await api.delete(`/users/${id}`);
+  return res.data;
+}
+
+

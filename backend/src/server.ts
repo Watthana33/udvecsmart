@@ -8,6 +8,7 @@ import statRoutes from './routes/stat.routes.js';
 import newsRoutes from './routes/news.routes.js';
 import settingRoutes from './routes/setting.routes.js';
 import contactRoutes from './routes/contact.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 const app = express();
 
@@ -18,8 +19,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -28,6 +29,7 @@ app.use('/api/stats', statRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/users', userRoutes);
 
 // Healthcheck & Database connection test
 app.get('/api/health', async (_req: Request, res: Response) => {

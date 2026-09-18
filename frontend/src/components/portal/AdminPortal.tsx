@@ -1,33 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, SubmissionStatusItem } from '../../types';
+import { UserProfile, SubmissionStatusItem, NewsItem } from '../../types';
 import {
   toggleSubmissionOpen,
   getSubmissionStatuses,
   getMySchoolStat,
   submitSchoolStat,
+  getNewsList,
   createNews,
+  deleteNews,
+  updateSubmissionPermissions,
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  createInstitution,
 } from '../../services/api';
 import {
   ShieldCheck,
   Lock,
-  Unlock,
   CheckCircle2,
-  Clock,
   Search,
   Save,
   PlusCircle,
   Users,
   GraduationCap,
   AlertTriangle,
-  RefreshCw,
   School,
-  FileSpreadsheet,
   Edit3,
-  ArrowLeft,
   Image as ImageIcon,
   X,
   Upload,
   UserCheck,
+  Building2,
+  Sparkles,
+  UserPlus,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 
 interface AdminPortalProps {
@@ -51,38 +59,100 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
   };
 
   // ==========================================
-  // SUPER ADMIN STATE
+  // SUPER ADMIN TABS (ตามภาพต้นแบบ 1-4)
   // ==========================================
-  const [submissionOpen, setSubmissionOpen] = useState<boolean>(true);
-  const [toggleLoading, setToggleLoading] = useState(false);
+  const [superAdminTab, setSuperAdminTab] = useState<'institutions' | 'banners_news' | 'settings_glow' | 'users'>('institutions');
+
+  // ==========================================
+  // SUPER ADMIN STATE: TAB 1 (สถานศึกษา)
+  // ==========================================
   const [submissionStatuses, setSubmissionStatuses] = useState<SubmissionStatusItem[]>([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [statusSearch, setStatusSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PUBLIC' | 'PRIVATE'>('ALL');
+  const [showAddInstitutionModal, setShowAddInstitutionModal] = useState(false);
+  const [newInstCode, setNewInstCode] = useState('');
+  const [newInstName, setNewInstName] = useState('');
+  const [newInstType, setNewInstType] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
+  const [newInstDirector, setNewInstDirector] = useState('');
+  const [newInstPhone, setNewInstPhone] = useState('');
+  const [newInstWebsite, setNewInstWebsite] = useState('');
+  const [creatingInst, setCreatingInst] = useState(false);
 
-  // Super Admin: College Editing Mode (สามารถเข้าไปแก้ไขข้อมูลวิทยาลัยใดๆ ได้)
+  // Super Admin: College Editing Mode
   const [editingCollege, setEditingCollege] = useState<SubmissionStatusItem | null>(null);
   const [loadingCollegeStat, setLoadingCollegeStat] = useState(false);
 
-  // News State with Photo Upload
+  // ==========================================
+  // SUPER ADMIN STATE: TAB 2 (แบนเนอร์, ข่าว, ข้อมูลติดต่อ)
+  // ==========================================
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [showAddNewsForm, setShowAddNewsForm] = useState(false);
   const [newsTitle, setNewsTitle] = useState('');
   const [newsContent, setNewsContent] = useState('');
-  const [newsCategory, setNewsCategory] = useState<'ANNOUNCEMENT' | 'ACTIVITY'>('ANNOUNCEMENT');
   const [newsCoverImage, setNewsCoverImage] = useState<string | null>(null);
   const [creatingNews, setCreatingNews] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const newsFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Contact Info Modal
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactAddress, setContactAddress] = useState('ศูนย์ส่งเสริมและพัฒนาอาชีวศึกษาภาคตะวันออกเฉียงเหนือ จ.อุดรธานี 41000');
+  const [contactPhone, setContactPhone] = useState('042-221538');
+  const [contactFacebook, setContactFacebook] = useState('https://facebook.com/udpvec');
+
+  // ==========================================
+  // SUPER ADMIN STATE: TAB 3 (ตั้งค่าสิทธิ์ & แสงกระพริบ)
+  // ==========================================
+  const [submissionOpen, setSubmissionOpen] = useState<boolean>(true);
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [allowSectionGeneral, setAllowSectionGeneral] = useState<boolean>(true);
+  const [allowSectionGrades, setAllowSectionGrades] = useState<boolean>(true);
+  const [allowSectionGraduates, setAllowSectionGraduates] = useState<boolean>(true);
+  const [glowSection, setGlowSection] = useState<string>('none');
+  const [savingPermissions, setSavingPermissions] = useState<boolean>(false);
+
+  // ==========================================
+  // SUPER ADMIN STATE: TAB 4 (จัดการผู้ใช้งาน)
+  // ==========================================
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState('');
+  const [userPassword, setUserPassword] = useState('');
+  const [userFullName, setUserFullName] = useState('');
+  const [userRole, setUserRole] = useState<'SUPER_ADMIN' | 'SCHOOL_ADMIN'>('SCHOOL_ADMIN');
+  const [userInstitutionId, setUserInstitutionId] = useState('');
+  const [savingUser, setSavingUser] = useState(false);
 
   // ==========================================
   // SCHOOL ADMIN / EDITING FORM STATE
   // ==========================================
+  const [selectedYear, setSelectedYear] = useState<number>(2568);
+  const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [schoolOpenStatus, setSchoolOpenStatus] = useState<boolean>(true);
   const [schoolInstitution, setSchoolInstitution] = useState<any>(null);
   const [loadingSchoolStat, setLoadingSchoolStat] = useState(false);
   const [savingStat, setSavingStat] = useState(false);
 
+  const [schoolPermissions, setSchoolPermissions] = useState({
+    allowSectionGeneral: true,
+    allowSectionGrades: true,
+    allowSectionGraduates: true,
+    glowSection: 'none',
+  });
+
   const [formData, setFormData] = useState({
     academicYear: 2568,
     semester: 1,
+    directorName: '',
+    photoUrl: '',
+    totalExecutives: 1,
+    totalTeachers: 0,
+    totalStaff: 0,
+    phone: '',
+    website: '',
     maleStudents: 0,
     femaleStudents: 0,
     vocCert1: 0,
@@ -91,9 +161,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
     highVocCert1: 0,
     highVocCert2: 0,
     bachelorCount: 0,
-    totalExecutives: 1,
-    totalTeachers: 0,
-    totalStaff: 0,
     gradVocCertCount: 0,
     gradHighVocCertCount: 0,
     employedInField: 0,
@@ -106,20 +173,56 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
     workSelf: 0,
   });
 
+  // Client-side Image compression helper via HTML5 Canvas
+  const compressImage = (file: File, maxWidth = 1280, quality = 0.82): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = reject;
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // ==========================================
-  // LOAD DATA ON MOUNT
+  // LOAD INITIAL DATA
   // ==========================================
   useEffect(() => {
     if (isSuperAdmin) {
       loadSuperAdminData();
+      loadNewsData();
+      loadUsersData();
     } else {
-      loadSchoolAdminData();
+      loadSchoolAdminData(selectedYear, selectedSemester);
     }
   }, [isSuperAdmin]);
 
   const loadSuperAdminData = () => {
     setLoadingStatuses(true);
-    getSubmissionStatuses(2568, 1)
+    getSubmissionStatuses(selectedYear, selectedSemester)
       .then((res) => {
         setSubmissionStatuses(res.data);
         setSubmissionOpen(res.isSubmissionOpen);
@@ -128,24 +231,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
       .finally(() => setLoadingStatuses(false));
   };
 
-  const loadSchoolAdminData = () => {
+  const loadNewsData = () => {
+    setLoadingNews(true);
+    getNewsList({ limit: 50 })
+      .then((res) => setNewsList(res.data))
+      .catch((err) => console.error('Failed to load news:', err))
+      .finally(() => setLoadingNews(false));
+  };
+
+  const loadUsersData = () => {
+    setLoadingUsers(true);
+    getUsers()
+      .then((data) => setUsersList(data))
+      .catch((err) => console.error('Failed to load users:', err))
+      .finally(() => setLoadingUsers(false));
+  };
+
+  const loadSchoolAdminData = (year: number, semester: number) => {
     setLoadingSchoolStat(true);
-    getMySchoolStat(2568, 1)
-      .then((res) => {
+    getMySchoolStat(year, semester)
+      .then((res: any) => {
         setSchoolOpenStatus(res.isSubmissionOpen);
         setSchoolInstitution(res.institution);
+        if (res.permissions) {
+          setSchoolPermissions(res.permissions);
+        }
         if (res.data) {
-          populateFormWithData(res.data);
+          populateFormWithData(res.data, res.institution);
+        } else {
+          resetFormForYear(year, semester, res.institution);
         }
       })
       .catch((err) => console.error('Failed to load school stat:', err))
       .finally(() => setLoadingSchoolStat(false));
   };
 
-  const populateFormWithData = (data: any) => {
+  const populateFormWithData = (data: any, inst?: any) => {
+    const director = inst?.personnels?.[0];
     setFormData({
-      academicYear: data.academicYear || 2568,
-      semester: data.semester || 1,
+      academicYear: data.academicYear || selectedYear,
+      semester: data.semester || selectedSemester,
+      directorName: director?.name || '',
+      photoUrl: director?.photoUrl || '',
+      phone: inst?.phone || '',
+      website: inst?.website || '',
       maleStudents: data.maleStudents || 0,
       femaleStudents: data.femaleStudents || 0,
       vocCert1: data.vocCert1 || 0,
@@ -170,41 +299,60 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
     });
   };
 
+  const resetFormForYear = (year: number, semester: number, inst?: any) => {
+    const director = inst?.personnels?.[0];
+    setFormData({
+      academicYear: year,
+      semester: semester,
+      directorName: director?.name || '',
+      photoUrl: director?.photoUrl || '',
+      phone: inst?.phone || '',
+      website: inst?.website || '',
+      maleStudents: 0,
+      femaleStudents: 0,
+      vocCert1: 0,
+      vocCert2: 0,
+      vocCert3: 0,
+      highVocCert1: 0,
+      highVocCert2: 0,
+      bachelorCount: 0,
+      totalExecutives: 1,
+      totalTeachers: 0,
+      totalStaff: 0,
+      gradVocCertCount: 0,
+      gradHighVocCertCount: 0,
+      employedInField: 0,
+      employedOutField: 0,
+      employedFreelance: 0,
+      furtherStudyCount: 0,
+      unemployedCount: 0,
+      workGov: 0,
+      workPrivate: 0,
+      workSelf: 0,
+    });
+  };
+
+  // Change Year or Semester in Form
+  const handleYearSemesterChange = (year: number, semester: number) => {
+    setSelectedYear(year);
+    setSelectedSemester(semester);
+    if (editingCollege) {
+      handleStartEditCollege(editingCollege, year, semester);
+    } else if (!isSuperAdmin) {
+      loadSchoolAdminData(year, semester);
+    }
+  };
+
   // Super Admin: Start Editing Any College
-  const handleStartEditCollege = (college: SubmissionStatusItem) => {
+  const handleStartEditCollege = (college: SubmissionStatusItem, year = selectedYear, sem = selectedSemester) => {
     setEditingCollege(college);
     setLoadingCollegeStat(true);
-    getMySchoolStat(2568, 1, college.id)
-      .then((res) => {
+    getMySchoolStat(year, sem, college.id)
+      .then((res: any) => {
         if (res.data) {
-          populateFormWithData(res.data);
+          populateFormWithData(res.data, res.institution);
         } else {
-          // Reset form to default for this college
-          setFormData({
-            academicYear: 2568,
-            semester: 1,
-            maleStudents: college.maleStudents || 0,
-            femaleStudents: college.femaleStudents || 0,
-            vocCert1: 0,
-            vocCert2: 0,
-            vocCert3: 0,
-            highVocCert1: 0,
-            highVocCert2: 0,
-            bachelorCount: 0,
-            totalExecutives: college.totalExecutives ?? 1,
-            totalTeachers: college.totalTeachers || 0,
-            totalStaff: college.totalStaff || 0,
-            gradVocCertCount: 0,
-            gradHighVocCertCount: 0,
-            employedInField: 0,
-            employedOutField: 0,
-            employedFreelance: 0,
-            furtherStudyCount: 0,
-            unemployedCount: 0,
-            workGov: 0,
-            workPrivate: 0,
-            workSelf: 0,
-          });
+          resetFormForYear(year, sem, res.institution);
         }
         setTimeout(() => {
           document.getElementById('college-edit-form')?.scrollIntoView({ behavior: 'smooth' });
@@ -240,333 +388,1185 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
     }
   };
 
-  // Photo upload handler for News
-  const handleNewsImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Super Admin: Save Granular Permissions & Glow Effect (Tab 3)
+  const handleSavePermissions = async () => {
+    try {
+      setSavingPermissions(true);
+      await updateSubmissionPermissions({
+        allowSectionGeneral,
+        allowSectionGrades,
+        allowSectionGraduates,
+        glowSection,
+      });
+      showToast('success', 'บันทึกการตั้งค่าสำเร็จ!', 'บันทึกการเปิด-ปิดสิทธิ์และจุดเด่นแสงกระพริบเรียบร้อยแล้ว');
+    } catch (err: any) {
+      showToast('error', 'บันทึกไม่สำเร็จ', err.response?.data?.message || err.message);
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+  // Super Admin: Photo upload handler for News (with canvas resize to avoid 413)
+  const handleNewsImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('ขนาดไฟล์ภาพต้องไม่เกิน 5 MB');
-      return;
+    try {
+      const compressed = await compressImage(file, 1280, 0.82);
+      setNewsCoverImage(compressed);
+    } catch (err) {
+      console.error('Failed to process image:', err);
+      showToast('error', 'ข้อผิดพลาด', 'ไม่สามารถประมวลผลไฟล์ภาพได้');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewsCoverImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
-  // Super Admin: Publish News with Cover Image
+  // Super Admin: Submit News
   const handleCreateNews = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsTitle.trim() || !newsContent.trim()) {
-      showToast('error', 'ข้อมูลไม่ครบถ้วน', 'กรุณากรอกหัวข้อข่าวและเนื้อหาข่าวให้ครบถ้วน');
+      showToast('error', 'ข้อมูลไม่ครบถ้วน', 'กรุณากรอกหัวข้อข่าวและเนื้อหาข่าว');
       return;
     }
 
-    setCreatingNews(true);
     try {
+      setCreatingNews(true);
       await createNews({
         title: newsTitle,
         content: newsContent,
-        category: newsCategory,
+        category: 'BANNER_SLIDE',
         coverImageUrl: newsCoverImage || undefined,
       });
+
       setNewsTitle('');
       setNewsContent('');
       setNewsCoverImage(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      showToast('success', 'เผยแพร่ข่าวสำเร็จ', 'ข่าวสารใหม่ถูกเพิ่มเข้าสู่สไลเดอร์หน้าแรกเรียบร้อยแล้ว');
-      onRefreshStats();
+      setShowAddNewsForm(false);
+      loadNewsData();
+      showToast('success', 'เผยแพร่ข่าวสารสำเร็จ!', 'ข่าวประชาสัมพันธ์ถูกเพิ่มเข้าระบบและแสดงบนหน้าแรกเรียบร้อยแล้ว');
     } catch (err: any) {
-      showToast('error', 'เผยแพร่ข่าวล้มเหลว', err.response?.data?.message || err.message);
+      showToast('error', 'เผยแพร่ข่าวไม่สำเร็จ', err.response?.data?.message || err.message);
     } finally {
       setCreatingNews(false);
     }
   };
 
-  // Handle Input Change for numerical fields
-  const handleInputChange = (field: string, value: number) => {
+  // Super Admin: Delete News
+  const handleDeleteNews = async (id: string, title: string) => {
+    if (!window.confirm(`ยืนยันการลบข่าวสาร: "${title}"?`)) return;
+    try {
+      await deleteNews(id);
+      loadNewsData();
+      showToast('success', 'ลบข่าวสำเร็จ', 'ข่าวประชาสัมพันธ์ถูกนำออกจากระบบแล้ว');
+    } catch (err: any) {
+      showToast('error', 'ลบข่าวไม่สำเร็จ', err.response?.data?.message || err.message);
+    }
+  };
+
+  // Super Admin: Save Contact Info
+  const handleSaveContactInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    setShowContactModal(false);
+    showToast('success', 'บันทึกข้อมูลติดต่อสำเร็จ', 'ข้อมูลติดต่อ สอจ.อุดรธานี ได้รับการอัปเดตเรียบร้อยแล้ว');
+  };
+
+  // Super Admin: Add New Institution (Modal)
+  const handleCreateInstitution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setCreatingInst(true);
+      await createInstitution({
+        code: newInstCode,
+        name: newInstName,
+        type: newInstType,
+        directorName: newInstDirector,
+        phone: newInstPhone,
+        website: newInstWebsite,
+      });
+      setShowAddInstitutionModal(false);
+      setNewInstCode('');
+      setNewInstName('');
+      setNewInstDirector('');
+      setNewInstPhone('');
+      setNewInstWebsite('');
+      loadSuperAdminData();
+      showToast('success', 'เพิ่มสถานศึกษาสำเร็จ!', `เพิ่ม ${newInstName} เข้าระบบเรียบร้อยแล้ว`);
+    } catch (err: any) {
+      showToast('error', 'ไม่สามารถเพิ่มสถานศึกษาได้', err.response?.data?.message || err.message);
+    } finally {
+      setCreatingInst(false);
+    }
+  };
+
+  // Super Admin: Add / Edit User
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingUser(true);
+      if (editingUserId) {
+        await updateUser(editingUserId, {
+          email: userEmail,
+          password: userPassword || undefined,
+          fullName: userFullName,
+          role: userRole,
+          institutionId: userInstitutionId || undefined,
+        });
+        showToast('success', 'อัปเดตผู้ใช้งานสำเร็จ!', `แก้ไขข้อมูลบัญชี ${userEmail} เรียบร้อยแล้ว`);
+      } else {
+        await createUser({
+          email: userEmail,
+          password: userPassword,
+          fullName: userFullName,
+          role: userRole,
+          institutionId: userInstitutionId || undefined,
+        });
+        showToast('success', 'สร้างบัญชีสำเร็จ!', `สร้างบัญชีผู้ใช้งาน ${userEmail} เรียบร้อยแล้ว`);
+      }
+      setShowUserModal(false);
+      setEditingUserId(null);
+      setUserEmail('');
+      setUserPassword('');
+      setUserFullName('');
+      loadUsersData();
+    } catch (err: any) {
+      showToast('error', 'บันทึกผู้ใช้ไม่สำเร็จ', err.response?.data?.message || err.message);
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const handleDeleteUserItem = async (id: string, email: string) => {
+    if (!window.confirm(`ยืนยันการลบบัญชีผู้ใช้: "${email}"?`)) return;
+    try {
+      await deleteUser(id);
+      loadUsersData();
+      showToast('success', 'ลบบัญชีสำเร็จ', `ลบบัญชี ${email} เรียบร้อยแล้ว`);
+    } catch (err: any) {
+      showToast('error', 'ลบบัญชีไม่สำเร็จ', err.response?.data?.message || err.message);
+    }
+  };
+
+  // Form Field Updater
+  const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: Math.max(0, value),
+      [field]: value,
     }));
   };
 
-  // Submit Form (for both School Admin and Super Admin editing a college)
-  const handleSubmitStat = async (e: React.FormEvent) => {
+  // Handle Photo upload in Section 1 (Form)
+  const handleDirectorPhotoInForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 800, 0.85);
+      handleInputChange('photoUrl', compressed);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Submit School Stat
+  const handleSaveStat = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingStat(true);
 
-    const targetPayload = {
-      ...formData,
-      institutionId: isSuperAdmin && editingCollege ? editingCollege.id : undefined,
-    };
-
-    const targetCollegeName = isSuperAdmin && editingCollege
-      ? editingCollege.name
-      : schoolInstitution?.name || 'สถานศึกษา';
-
     try {
-      await submitSchoolStat(targetPayload);
+      const payload: any = {
+        ...formData,
+        academicYear: selectedYear,
+        semester: selectedSemester,
+      };
+
+      if (isSuperAdmin && editingCollege) {
+        payload.institutionId = editingCollege.id;
+      }
+
+      await submitSchoolStat(payload);
+
       showToast(
         'success',
-        'บันทึกข้อมูลสถิติสำเร็จ!',
-        `ระบบได้ทำการบันทึกและอัปเดตสถิติของ ${targetCollegeName} ลงสู่ฐานข้อมูลกลางเรียบร้อยแล้ว`
+        'บันทึกข้อมูลสำเร็จ!',
+        `ข้อมูลสถิติปีการศึกษา ${selectedYear} ภาคเรียนที่ ${selectedSemester} ได้รับการอัปเดตเรียบร้อยแล้ว`
       );
+
       onRefreshStats();
+
       if (isSuperAdmin) {
         loadSuperAdminData();
+      } else {
+        loadSchoolAdminData(selectedYear, selectedSemester);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง';
-      showToast('error', 'บันทึกข้อมูลไม่สำเร็จ', msg);
+      console.error('Submit school stat error:', err);
+      showToast(
+        'error',
+        'บันทึกข้อมูลไม่สำเร็จ',
+        err.response?.data?.message || err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง'
+      );
     } finally {
       setSavingStat(false);
     }
   };
 
-  // Filter 29 colleges
+  // Filtered colleges in Tab 1
   const filteredStatuses = submissionStatuses.filter((s) => {
+    const matchType = statusFilter === 'ALL' || s.type === statusFilter;
     const matchSearch =
       s.name.toLowerCase().includes(statusSearch.toLowerCase()) ||
       s.code.includes(statusSearch);
-    const matchType = statusFilter === 'ALL' || s.type === statusFilter;
-    return matchSearch && matchType;
+    return matchType && matchSearch;
   });
 
-  const submittedCount = submissionStatuses.filter((s) => s.isSubmitted).length;
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative">
-      
-      {/* Floating Animated Toast Notification */}
+    <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-fadeIn">
+      {/* ==========================================
+          FLOATING TOAST NOTIFICATION
+         ========================================== */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md animate-bounce-in shadow-2xl rounded-2xl p-4 bg-white border-2 flex items-start gap-3.5 transition-all">
+        <div className="fixed top-20 right-6 z-50 animate-bounce">
           <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              toast.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
+            className={`p-4 rounded-2xl shadow-2xl border flex items-start gap-3 text-sm max-w-md ${
+              toast.type === 'success'
+                ? 'bg-emerald-800 text-white border-emerald-700 shadow-emerald-900/30'
+                : 'bg-rose-800 text-white border-rose-700 shadow-rose-900/30'
             }`}
           >
-            {toast.type === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-300 shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1">
+              <p className="font-bold text-base">{toast.title}</p>
+              <p className="text-xs opacity-90 mt-0.5 leading-relaxed">{toast.message}</p>
+            </div>
+            <button onClick={() => setToast(null)} className="opacity-70 hover:opacity-100 p-1">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <h4 className={`text-sm font-extrabold ${toast.type === 'success' ? 'text-emerald-900' : 'text-rose-900'}`}>
-              {toast.title}
-            </h4>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{toast.message}</p>
-          </div>
-          <button
-            onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
-      {/* Portal Header */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#932d16]/10 text-[#932d16] flex items-center justify-center font-bold text-2xl shadow-inner shrink-0">
-            {isSuperAdmin ? <ShieldCheck className="w-8 h-8" /> : <School className="w-8 h-8" />}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-[#932d16]/10 text-[#932d16]">
-                {isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง สอจ.อุดรธานี' : 'ผู้ดูแลระบบสถานศึกษา'}
-              </span>
-              <span className="text-xs text-slate-400 font-mono">
-                ปีการศึกษา 2568 / ภาคเรียนที่ 1
-              </span>
+      {/* ==========================================
+          HEADER SECTION
+         ========================================== */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#932d16]/10 text-[#932d16] flex items-center justify-center font-bold text-2xl shadow-sm">
+              {isSuperAdmin ? <ShieldCheck className="w-8 h-8" /> : <School className="w-8 h-8" />}
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-              {isSuperAdmin
-                ? 'ศูนย์ควบคุมและบริหารจัดการ สอจ.อุดรธานี (Super Admin Control Center)'
-                : `ระบบรายงานสถิติ: ${schoolInstitution?.name || user.institution?.name || 'สถานศึกษา'}`}
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              ผู้ปฏิบัติงาน: <strong>{user.fullName}</strong> ({user.email})
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-[#932d16]/10 text-[#932d16]">
+                  {isSuperAdmin ? '🛡️ ผู้ดูแลระบบส่วนกลาง (สอจ.อุดรธานี)' : '🏫 ผู้ดูแลสถานศึกษา'}
+                </span>
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 mt-1">
+                {isSuperAdmin ? 'ศูนย์ควบคุมและบริหารจัดการข้อมูล สอจ.อุดรธานี' : (user.institution?.name || 'ระบบบันทึกข้อมูลสถิติ')}
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                ผู้ใช้งาน: <strong className="text-slate-800">{user.fullName}</strong> ({user.email})
+              </p>
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={() => (isSuperAdmin ? loadSuperAdminData() : loadSchoolAdminData())}
-          className="self-start md:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>รีเฟรชข้อมูล</span>
-        </button>
-      </div>
+        {/* Locked status banner for School Admin when closed */}
+        {!isSuperAdmin && !schoolOpenStatus && (
+          <div className="mt-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-rose-600 shrink-0" />
+            <div className="text-xs">
+              <strong className="font-bold block">ขณะนี้ระบบปิดรับการรายงานข้อมูลสถิติ</strong>
+              <span>กรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี เพื่อเปิดสิทธิ์การบันทึกข้อมูล</span>
+            </div>
+          </div>
+        )}
 
-      {/* ============================================================== */}
-      {/* 1. SUPER ADMIN VIEW: TOGGLE WINDOW, EDIT ANY COLLEGE, NEWS */}
-      {/* ============================================================== */}
-      {isSuperAdmin && (
-        <div className="space-y-8">
-          {/* Section 1: Submission Window Master Switch */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
-                      submissionOpen
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                    }`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        submissionOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
-                      }`}
-                    />
-                    {submissionOpen ? 'ระบบเปิดรับการกรอกข้อมูล' : 'ระบบปิดรับการกรอกข้อมูลแล้ว'}
-                  </span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black">
-                  {submissionOpen
-                    ? 'สถานศึกษาทั้ง 29 แห่ง กำลังสามารถเข้ามากรอก/แก้ไขสถิติได้'
-                    : 'สถานศึกษาถูกล็อก ไม่สามารถแก้ไขหรือส่งข้อมูลได้ (ยกเว้นท่านที่เป็นแอดมิน สอจ.)'}
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl font-light">
-                  เมื่อเปิดระบบ แอดมินวิทยาลัยจะสามารถเข้ามากรอกสถิติได้ เมื่อปิดระบบ วิทยาลัยจะไม่สามารถบันทึกได้
-                  แต่ท่านที่เป็น **แอดมิน สอจ. จะมีสิทธิ์เข้าแก้ไขข้อมูลแทนสถานศึกษาใดๆ ได้ตลอดเวลา**
-                </p>
-              </div>
-
+        {/* ==========================================
+            SUPER ADMIN 4 SUB-TABS NAVIGATION (ตรงตามภาพ 1-4)
+           ========================================== */}
+        {isSuperAdmin && (
+          <div className="mt-8 border-b border-slate-200">
+            <div className="flex flex-wrap gap-2 sm:gap-6 -mb-px text-sm font-bold text-slate-600">
               <button
-                onClick={handleToggleSubmission}
-                disabled={toggleLoading}
-                className={`inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg transition-all transform active:scale-95 whitespace-nowrap cursor-pointer ${
-                  submissionOpen
-                    ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-900/30'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-900/30'
+                onClick={() => setSuperAdminTab('institutions')}
+                className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+                  superAdminTab === 'institutions'
+                    ? 'border-[#932d16] text-[#932d16]'
+                    : 'border-transparent hover:text-slate-900'
                 }`}
               >
-                {toggleLoading ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                ) : submissionOpen ? (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    <span>คลิกเพื่อ ปิดระบบกรอกข้อมูล</span>
-                  </>
-                ) : (
-                  <>
-                    <Unlock className="w-5 h-5" />
-                    <span>คลิกเพื่อ เปิดระบบรับข้อมูล</span>
-                  </>
-                )}
+                <School className="w-4 h-4" />
+                <span>จัดการข้อมูลสถานศึกษา</span>
+              </button>
+              <button
+                onClick={() => setSuperAdminTab('banners_news')}
+                className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+                  superAdminTab === 'banners_news'
+                    ? 'border-[#932d16] text-[#932d16]'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>จัดการแบนเนอร์ ข่าวสไลด์ และข้อมูลติดต่อ</span>
+              </button>
+              <button
+                onClick={() => setSuperAdminTab('settings_glow')}
+                className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+                  superAdminTab === 'settings_glow'
+                    ? 'border-[#932d16] text-[#932d16]'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>ตั้งค่าเปิด-ปิดการกรอกข้อมูล & จุดเด่นแสงกระพริบ</span>
+              </button>
+              <button
+                onClick={() => setSuperAdminTab('users')}
+                className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+                  superAdminTab === 'users'
+                    ? 'border-[#932d16] text-[#932d16]'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>จัดการผู้ใช้งานระบบ</span>
               </button>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Section 2: Active College Editing Mode for Super Admin */}
-          {editingCollege && (
-            <div id="college-edit-form" className="bg-amber-50/70 border-2 border-amber-300 rounded-3xl p-6 sm:p-8 space-y-6 shadow-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-200 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#932d16] text-white flex items-center justify-center font-bold text-xl shadow">
-                    <Edit3 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#932d16] uppercase tracking-wider">
-                      โหมดแก้ไขข้อมูลโดยผู้ดูแลระบบ สอจ. (Super Admin Override)
-                    </span>
-                    <h2 className="text-xl font-black text-slate-900">
-                      กำลังแก้ไขข้อมูล: {editingCollege.name} ({editingCollege.code})
-                    </h2>
-                  </div>
-                </div>
+      {/* =========================================================================
+          SUPER ADMIN TAB 1: จัดการข้อมูลสถานศึกษา (ตรงตามภาพ 1 - media_1789761880664.png)
+         ========================================================================= */}
+      {isSuperAdmin && superAdminTab === 'institutions' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  รายชื่อสถานศึกษาทั้งหมด {submissionStatuses.length} แห่งในสังกัด
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  ตรวจสอบสถิติผู้บริหาร ครู นักเรียน และแก้ไขข้อมูลสถานศึกษา
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddInstitutionModal(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>+ เพิ่มสถานศึกษา</span>
+              </button>
+            </div>
 
+            {/* Filter and Search */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อวิทยาลัย หรือ รหัส..."
+                  value={statusSearch}
+                  onChange={(e) => setStatusSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                />
+              </div>
+              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
                 <button
-                  onClick={() => setEditingCollege(null)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 shadow-xs cursor-pointer transition-colors"
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg ${statusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>ยกเลิก / ปิดโหมดแก้ไข</span>
+                  ทั้งหมด ({submissionStatuses.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('PUBLIC')}
+                  className={`px-3 py-1.5 rounded-lg ${statusFilter === 'PUBLIC' ? 'bg-[#932d16] text-white shadow-sm' : 'text-slate-600'}`}
+                >
+                  รัฐบาล ({submissionStatuses.filter((s) => s.type === 'PUBLIC').length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('PRIVATE')}
+                  className={`px-3 py-1.5 rounded-lg ${statusFilter === 'PRIVATE' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-600'}`}
+                >
+                  เอกชน ({submissionStatuses.filter((s) => s.type === 'PRIVATE').length})
                 </button>
               </div>
+            </div>
 
-              {loadingCollegeStat ? (
-                <div className="py-12 text-center text-slate-500">
-                  <RefreshCw className="w-8 h-8 animate-spin text-[#932d16] mx-auto mb-2" />
-                  <p className="text-sm font-bold">กำลังดึงข้อมูลสถิติของ {editingCollege.name}...</p>
+            {/* Table matching mockup 1 */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">รหัส</th>
+                    <th className="py-3 px-4">ชื่อสถานศึกษา</th>
+                    <th className="py-3 px-4">ประเภท</th>
+                    <th className="py-3 px-4 text-center">ผู้บริหาร</th>
+                    <th className="py-3 px-4 text-center">ครู/อาจารย์</th>
+                    <th className="py-3 px-4 text-center">ปวช.(1-3)</th>
+                    <th className="py-3 px-4 text-center">ปวส.(1-2)</th>
+                    <th className="py-3 px-4 text-center">ทล.บ.</th>
+                    <th className="py-3 px-4 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingStatuses ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                        กำลังโหลดข้อมูลสถานศึกษา...
+                      </td>
+                    </tr>
+                  ) : filteredStatuses.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                        ไม่พบสถานศึกษาที่ตรงกับคำค้นหา
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStatuses.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-600">{item.code}</td>
+                        <td className="py-3.5 px-4 font-extrabold text-slate-900">{item.name}</td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              item.type === 'PUBLIC'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}
+                          >
+                            {item.type === 'PUBLIC' ? 'รัฐบาล' : 'เอกชน'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold text-amber-700">
+                          {item.totalExecutives ?? 1}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold text-blue-700">
+                          {item.totalTeachers.toLocaleString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold text-purple-700">
+                          {(item.vocCertCount || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold text-indigo-700">
+                          {(item.highVocCertCount || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-700">
+                          {item.bachelorCount || 0}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => handleStartEditCollege(item)}
+                            className="px-3.5 py-1.5 bg-slate-100 hover:bg-[#932d16] text-slate-700 hover:text-white rounded-lg font-bold text-xs transition-all shadow-sm flex items-center gap-1 mx-auto"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>แก้ไข</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUPER ADMIN TAB 2: จัดการแบนเนอร์ ข่าวสไลด์ และข้อมูลติดต่อ (ตรงตามภาพ 2 - media_1789761951735.png)
+         ========================================================================= */}
+      {isSuperAdmin && superAdminTab === 'banners_news' && (
+        <div className="space-y-8">
+          {/* Top 2 Cards: Header Banner & Contact Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Card 1: Header Banner */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900">แบนเนอร์ส่วนหัวเว็บ (Header Banner)</h3>
+                <p className="text-xs text-slate-500 mt-1">เปลี่ยนภาพพื้นหลังส่วนหัวตามเทศกาล</p>
+              </div>
+              <div className="pt-6">
+                <button
+                  onClick={() => {
+                    const btn = document.getElementById('navbar-banner-changer-btn');
+                    if (btn) {
+                      btn.click();
+                    } else {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      showToast('success', 'เปลี่ยนภาพแบนเนอร์', 'สามารถกดปุ่ม "📷 เปลี่ยนแบนเนอร์" ที่มุมขวาบนของแบนเนอร์ได้ทันที');
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                >
+                  แก้ไขแบนเนอร์
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: Contact Info */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900">ข้อมูลติดต่อ สอจ. (Footer Info)</h3>
+                <p className="text-xs text-slate-500 mt-1">แก้ไขที่อยู่ สอจ. เบอร์โทร และแฟนเพจ</p>
+              </div>
+              <div className="pt-6">
+                <button
+                  onClick={() => setShowContactModal(true)}
+                  className="px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                >
+                  แก้ไขข้อมูลติดต่อ
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: News Carousel List */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h3 className="text-base font-black text-slate-900">รายการสไลด์ข่าวประชาสัมพันธ์ (News Carousel)</h3>
+                <p className="text-xs text-slate-500 mt-0.5">จัดการรูปภาพและข้อความที่จะนำไปวิ่งสไลด์บนหน้าแรก</p>
+              </div>
+              <button
+                onClick={() => setShowAddNewsForm(!showAddNewsForm)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>{showAddNewsForm ? 'ปิดฟอร์ม' : '+ เพิ่มข่าวสไลด์ใหม่'}</span>
+              </button>
+            </div>
+
+            {/* Add News Form with Image resize to avoid 413 */}
+            {showAddNewsForm && (
+              <form onSubmit={handleCreateNews} className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-6 space-y-4">
+                <h4 className="text-sm font-black text-slate-900">เพิ่มข่าวประชาสัมพันธ์ใหม่</h4>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">หัวข้อข่าว *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ขับเคลื่อนหลักสูตรทวิภาคีพรีเมียม ร่วมกับสถานประกอบการชั้นนำ"
+                    value={newsTitle}
+                    onChange={(e) => setNewsTitle(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
                 </div>
-              ) : (
-                <form onSubmit={handleSubmitStat} className="space-y-6">
-                  {/* Fieldset 1: ผู้บริหาร ครู และบุคลากร */}
-                  <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-[#932d16]" />
-                      <span>1. จำนวนผู้บริหาร ครู และบุคลากรทางการศึกษา</span>
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">ผู้บริหารสถานศึกษา (คน)</label>
-                        <input
-                          type="number"
-                          value={formData.totalExecutives}
-                          onChange={(e) => handleInputChange('totalExecutives', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                        />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">เนื้อหาข่าว / คำอธิบายย่อ *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="รายละเอียดข่าวสารประชาสัมพันธ์..."
+                    value={newsContent}
+                    onChange={(e) => setNewsContent(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium"
+                  />
+                </div>
+
+                {/* Photo Upload & Preview */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">รูปภาพหน้าปกข่าว (16:9)</label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => newsFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>เลือกไฟล์รูปภาพ</span>
+                    </button>
+                    <input
+                      ref={newsFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleNewsImageUpload}
+                      className="hidden"
+                    />
+                    <span className="text-xs text-slate-400">หรือวาง URL:</span>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/cover.jpg"
+                      value={newsCoverImage && !newsCoverImage.startsWith('data:') ? newsCoverImage : ''}
+                      onChange={(e) => setNewsCoverImage(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  {newsCoverImage && (
+                    <div className="relative w-48 h-28 rounded-xl overflow-hidden border border-slate-200 shadow-sm mt-2">
+                      <img src={newsCoverImage} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setNewsCoverImage(null)}
+                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full text-xs shadow"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddNewsForm(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-xl"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingNews}
+                    className="px-5 py-2 text-xs font-bold bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl shadow disabled:opacity-50"
+                  >
+                    {creatingNews ? 'กำลังบันทึก...' : 'เผยแพร่ข่าวสาร'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* News Table matching mockup 2 */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4 w-24">รูปภาพ</th>
+                    <th className="py-3 px-4">หัวข้อข่าว</th>
+                    <th className="py-3 px-4">คำอธิบายย่อ</th>
+                    <th className="py-3 px-4 text-center">ลำดับ</th>
+                    <th className="py-3 px-4 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingNews ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        กำลังโหลดข่าวสาร...
+                      </td>
+                    </tr>
+                  ) : newsList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        ยังไม่มีข่าวประชาสัมพันธ์ในระบบ
+                      </td>
+                    </tr>
+                  ) : (
+                    newsList.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="w-16 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
+                            {item.coverImageUrl ? (
+                              <img src={item.coverImageUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                <ImageIcon className="w-4 h-4" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900 max-w-xs truncate">{item.title}</td>
+                        <td className="py-3 px-4 text-slate-500 max-w-xs truncate">{item.content}</td>
+                        <td className="py-3 px-4 text-center font-bold text-slate-600">{idx + 1}</td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleDeleteNews(item.id, item.title)}
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg font-bold text-xs transition-colors"
+                          >
+                            ลบ
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUPER ADMIN TAB 3: ตั้งค่าเปิด-ปิดการกรอกข้อมูล & จุดเด่นแสงกระพริบ (ตรงตามภาพ 3 - media_1789761964572.png)
+         ========================================================================= */}
+      {isSuperAdmin && superAdminTab === 'settings_glow' && (
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-[#932d16]/10 text-[#932d16]">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  ควบคุมการเปิด-ปิดการกรอกข้อมูลของแอดมินวิทยาลัย
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Admin ส่วนกลางสามารถสั่งล็อกไม่ให้แต่ละวิทยาลัยแก้ไขข้อมูล และเลือกเปิดแสงกระพริบวิบวับเพื่อเน้นย้ำจุดที่ต้องการให้เร่งกรอก
+                </p>
+              </div>
+            </div>
+
+            {/* Checkbox List */}
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200 cursor-pointer transition-colors">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">1. แท็บข้อมูลทั่วไปและผู้บริหาร</h4>
+                  <p className="text-xs text-slate-500">อนุญาตให้แก้ไขเว็บไซต์ ลิงก์ และชื่อผู้บริหาร</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowSectionGeneral}
+                  onChange={(e) => setAllowSectionGeneral(e.target.checked)}
+                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200 cursor-pointer transition-colors">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">2. แท็บสถิตินักเรียนแยกชั้นปี (ปวช.1-3 / ปวส.1-2)</h4>
+                  <p className="text-xs text-slate-500">อนุญาตให้บันทึกสถิตินักเรียนแรกเข้าและรายชั้นปี</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowSectionGrades}
+                  onChange={(e) => setAllowSectionGrades(e.target.checked)}
+                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200 cursor-pointer transition-colors">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">3. แท็บผู้สำเร็จการศึกษา & ภาวะการมีงานทำ</h4>
+                  <p className="text-xs text-slate-500">อนุญาตให้บันทึกจำนวนคนจบและติดตามการมีงานทำ</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowSectionGraduates}
+                  onChange={(e) => setAllowSectionGraduates(e.target.checked)}
+                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                />
+              </label>
+            </div>
+
+            {/* Glow Pulse Selection Box (ตามภาพที่ 3) */}
+            <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-5 space-y-3">
+              <label className="text-xs font-bold text-amber-950 block">
+                เลือกแท็บที่ต้องการให้มีแสงกระพริบวิบวับ (Glow Pulse Effect) เพื่อเน้นย้ำการกรอกด่วน:
+              </label>
+              <select
+                value={glowSection}
+                onChange={(e) => setGlowSection(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="none">-- ไม่เปิดการเน้นย้ำ --</option>
+                <option value="section_1">แท็บที่ 1: ข้อมูลทั่วไปและผู้บริหาร</option>
+                <option value="section_2">แท็บที่ 2: สถิตินักเรียนแยกชั้นปี</option>
+                <option value="section_3">แท็บที่ 3: ผู้สำเร็จการศึกษา & มีงานทำ</option>
+              </select>
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleSavePermissions}
+              disabled={savingPermissions}
+              className="w-full py-3 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              <span>{savingPermissions ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าสิทธิ์และการเน้นย้ำ'}</span>
+            </button>
+
+            {/* Global submission toggle switch */}
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-800 block">สวิตช์เปิด-ปิดการรับข้อมูลทั้งหมด (Global Lock)</span>
+                <span className="text-[11px] text-slate-500">
+                  {submissionOpen ? '🟢 ปัจจุบัน: เปิดระบบรับข้อมูลทั้งหมด' : '🔴 ปัจจุบัน: ปิดระบบรับข้อมูลทั้งหมด'}
+                </span>
+              </div>
+              <button
+                onClick={handleToggleSubmission}
+                disabled={toggleLoading}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                  submissionOpen
+                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-800'
+                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                }`}
+              >
+                {submissionOpen ? 'คลิกเพื่อ ปิดระบบ' : 'คลิกเพื่อ เปิดระบบ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUPER ADMIN TAB 4: จัดการผู้ใช้งานระบบ (ตรงตามภาพ 4 - media_1789761977890.png)
+         ========================================================================= */}
+      {isSuperAdmin && superAdminTab === 'users' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  บัญชีผู้ดูแลระบบและแอดมินประจำวิทยาลัย 29 แห่ง
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">จัดการสิทธิ์และสร้างบัญชีเข้าใช้งานระบบ</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingUserId(null);
+                  setUserEmail('');
+                  setUserPassword('');
+                  setUserFullName('');
+                  setUserRole('SCHOOL_ADMIN');
+                  setUserInstitutionId('');
+                  setShowUserModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ เพิ่มบัญชีผู้ใช้งาน</span>
+              </button>
+            </div>
+
+            {/* Table matching mockup 4 */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-4 font-mono">USERNAME</th>
+                    <th className="py-3.5 px-4">ชื่อ - นามสกุล</th>
+                    <th className="py-3.5 px-4">บทบาท</th>
+                    <th className="py-3.5 px-4">สังกัดสถานศึกษา</th>
+                    <th className="py-3.5 px-4 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingUsers ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        กำลังโหลดข้อมูลผู้ใช้งาน...
+                      </td>
+                    </tr>
+                  ) : usersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        ไม่พบบัญชีผู้ใช้งานในระบบ
+                      </td>
+                    </tr>
+                  ) : (
+                    usersList.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-700">{u.email}</td>
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{u.fullName}</td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              u.role === 'SUPER_ADMIN'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {u.role === 'SUPER_ADMIN' ? 'super_admin' : 'school_admin'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {u.institution?.name || (u.role === 'SUPER_ADMIN' ? 'สอจ.อุดรธานี' : '-')}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingUserId(u.id);
+                                setUserEmail(u.email);
+                                setUserPassword('');
+                                setUserFullName(u.fullName);
+                                setUserRole(u.role);
+                                setUserInstitutionId(u.institutionId || '');
+                                setShowUserModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs transition-colors"
+                            >
+                              แก้ไข
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUserItem(u.id, u.email)}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg font-bold text-xs transition-colors"
+                            >
+                              ลบ
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          DATA SUBMISSION & EDITING FORM
+          (ใช้ได้ทั้ง School Admin และ Super Admin เมื่อกด "แก้ไข" วิทยาลัยใดๆ)
+         ========================================================================= */}
+      {(!isSuperAdmin || editingCollege) && (
+        <div id="college-edit-form" className="space-y-6 relative">
+          {/* Loading overlay */}
+          {(loadingCollegeStat || loadingSchoolStat) && (
+            <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-xs flex items-center justify-center rounded-3xl">
+              <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center gap-3 border border-slate-200">
+                <Loader2 className="w-5 h-5 text-[#932d16] animate-spin" />
+                <span className="text-xs font-bold text-slate-700">กำลังโหลดข้อมูลสถิติ...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Banner for Super Admin Override */}
+          {isSuperAdmin && editingCollege && (
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 p-4 rounded-2xl shadow-md flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-6 h-6 shrink-0" />
+                <div>
+                  <h4 className="font-extrabold text-sm">
+                    👑 โหมดแก้ไขข้อมูลโดยผู้ดูแลระบบ สอจ. (Super Admin Override)
+                  </h4>
+                  <p className="text-xs opacity-90">
+                    กำลังแก้ไขข้อมูลของ: <strong>{editingCollege.name}</strong> ({editingCollege.code})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingCollege(null)}
+                className="px-3.5 py-1.5 bg-white text-slate-900 font-bold text-xs rounded-xl shadow hover:bg-slate-100 transition-colors shrink-0"
+              >
+                ✕ ปิดโหมดแก้ไข
+              </button>
+            </div>
+          )}
+
+          {/* Form Box */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
+            {/* Header with Year and Semester Selector (ตอบสนองความต้องการข้อ 5) */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  แบบฟอร์มบันทึกและรายงานข้อมูลสถิติประจำสถานศึกษา
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  สถานศึกษา: <strong>{isSuperAdmin ? editingCollege?.name : (schoolInstitution?.name || user.institution?.name)}</strong>
+                </p>
+              </div>
+
+              {/* Year and Semester Dropdowns */}
+              <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 shrink-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <span>ปีการศึกษา:</span>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => handleYearSemesterChange(Number(e.target.value), selectedSemester)}
+                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#932d16]"
+                  >
+                    <option value={2568}>2568</option>
+                    <option value={2567}>2567</option>
+                    <option value={2566}>2566</option>
+                    <option value={2565}>2565</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <span>ภาคเรียนที่:</span>
+                  <select
+                    value={selectedSemester}
+                    onChange={(e) => handleYearSemesterChange(selectedYear, Number(e.target.value))}
+                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#932d16]"
+                  >
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveStat} className="space-y-8">
+              {/* ==========================================================
+                  SECTION 1: ข้อมูลทั่วไปและผู้บริหาร
+                 ========================================================== */}
+              {(() => {
+                const isLocked = !isSuperAdmin && !schoolPermissions.allowSectionGeneral;
+                const isGlow = schoolPermissions.glowSection === 'section_1';
+                return (
+                  <div
+                    className={`rounded-3xl p-6 border transition-all ${
+                      isGlow
+                        ? 'border-amber-400 ring-4 ring-amber-400/50 animate-pulse shadow-lg bg-amber-50/20'
+                        : 'border-slate-200 bg-white'
+                    } ${isLocked ? 'opacity-60 pointer-events-none' : ''}`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-[#932d16]" />
+                        <h3 className="text-base font-black text-slate-900">
+                          1. ข้อมูลทั่วไปและผู้บริหารสถานศึกษา
+                        </h3>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">ครูผู้สอน (คน)</label>
-                        <input
-                          type="number"
-                          value={formData.totalTeachers}
-                          onChange={(e) => handleInputChange('totalTeachers', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                        />
+                      {isGlow && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-extrabold shadow animate-bounce">
+                          ⚡ จุดเน้นย้ำด่วน
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> ล็อกโดย สอจ.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Photo upload frame */}
+                      <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="w-20 h-28 rounded-xl overflow-hidden bg-white border-2 border-slate-200 shadow-sm flex items-center justify-center mb-2">
+                          {formData.photoUrl ? (
+                            <img src={formData.photoUrl} alt="" className="w-full h-full object-cover object-top" />
+                          ) : (
+                            <UserCheck className="w-8 h-8 text-slate-300" />
+                          )}
+                        </div>
+                        <label className="cursor-pointer px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[11px] flex items-center gap-1.5 shadow-sm">
+                          <Camera className="w-3 h-3" />
+                          <span>เปลี่ยนภาพผู้บริหาร</span>
+                          <input type="file" accept="image/*" onChange={handleDirectorPhotoInForm} className="hidden" />
+                        </label>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">บุคลากรทางการศึกษา (คน)</label>
-                        <input
-                          type="number"
-                          value={formData.totalStaff}
-                          onChange={(e) => handleInputChange('totalStaff', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                        />
+
+                      {/* Inputs */}
+                      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">ชื่อ - นามสกุล ผู้บริหาร (ผอ.)</label>
+                          <input
+                            type="text"
+                            value={formData.directorName}
+                            onChange={(e) => handleInputChange('directorName', e.target.value)}
+                            placeholder="เช่น นายธีรภัทร์ ไชยสัตย์"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">จำนวนผู้บริหาร (คน) (ผอ. / รอง ผอ.)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={formData.totalExecutives}
+                            onChange={(e) => handleInputChange('totalExecutives', Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">จำนวนครูผู้สอน (คน)</label>
+                          <input
+                            type="number"
+                            value={formData.totalTeachers}
+                            onChange={(e) => handleInputChange('totalTeachers', Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">จำนวนบุคลากรทางการศึกษา (คน)</label>
+                          <input
+                            type="number"
+                            value={formData.totalStaff}
+                            onChange={(e) => handleInputChange('totalStaff', Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">เบอร์โทรศัพท์ติดต่อ</label>
+                          <input
+                            type="text"
+                            value={formData.phone}
+                            onChange={(e) => handleInputChange('phone', e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-700">เว็บไซต์สถานศึกษา</label>
+                          <input
+                            type="url"
+                            value={formData.website}
+                            onChange={(e) => handleInputChange('website', e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
+                );
+              })()}
 
-                  {/* Fieldset 2: นักเรียน/นักศึกษา ชาย-หญิง และระดับชั้น */}
-                  <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#932d16]" />
-                      <span>2. จำนวนนักเรียน / นักศึกษา จำแนกเพศ และชั้นปี</span>
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* ==========================================================
+                  SECTION 2: สถิตินักเรียนแยกชั้นปี
+                 ========================================================== */}
+              {(() => {
+                const isLocked = !isSuperAdmin && !schoolPermissions.allowSectionGrades;
+                const isGlow = schoolPermissions.glowSection === 'section_2';
+                return (
+                  <div
+                    className={`rounded-3xl p-6 border transition-all ${
+                      isGlow
+                        ? 'border-amber-400 ring-4 ring-amber-400/50 animate-pulse shadow-lg bg-amber-50/20'
+                        : 'border-slate-200 bg-white'
+                    } ${isLocked ? 'opacity-60 pointer-events-none' : ''}`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-[#932d16]" />
+                        <h3 className="text-base font-black text-slate-900">
+                          2. สถิตินักเรียนแยกตามชั้นปี และเพศ
+                        </h3>
+                      </div>
+                      {isGlow && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-extrabold shadow animate-bounce">
+                          ⚡ จุดเน้นย้ำด่วน
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> ล็อกโดย สอจ.
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Male / Female */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">นักเรียนชาย (คน)</label>
+                        <label className="text-xs font-bold text-slate-700">นักเรียน ชาย (คน)</label>
                         <input
                           type="number"
                           value={formData.maleStudents}
                           onChange={(e) => handleInputChange('maleStudents', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">นักเรียนหญิง (คน)</label>
+                        <label className="text-xs font-bold text-slate-700">นักเรียน หญิง (คน)</label>
                         <input
                           type="number"
                           value={formData.femaleStudents}
                           onChange={(e) => handleInputChange('femaleStudents', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500">รวมทั้งหมด (คำนวณอัตโนมัติ)</label>
-                        <div className="w-full px-3.5 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-[#932d16]">
+                      <div className="p-3 bg-slate-100 rounded-xl flex flex-col justify-center text-center">
+                        <span className="text-[11px] text-slate-500 font-semibold">รวมทั้งหมด</span>
+                        <span className="text-base font-black text-[#932d16]">
                           {(formData.maleStudents + formData.femaleStudents).toLocaleString()} คน
-                        </div>
+                        </span>
                       </div>
                     </div>
 
+                    {/* Grade Level Breakdown */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
                       {[
                         { key: 'vocCert1', label: 'ปวช. 1' },
@@ -588,21 +1588,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
                       ))}
                     </div>
                   </div>
+                );
+              })()}
 
-                  {/* Fieldset 3: ผู้สำเร็จการศึกษาและการมีงานทำ */}
-                  <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-[#932d16]" />
-                      <span>3. ผู้สำเร็จการศึกษา และภาวะการมีงานทำ</span>
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ==========================================================
+                  SECTION 3: ผู้สำเร็จการศึกษา และภาวะการมีงานทำ
+                 ========================================================== */}
+              {(() => {
+                const isLocked = !isSuperAdmin && !schoolPermissions.allowSectionGraduates;
+                const isGlow = schoolPermissions.glowSection === 'section_3';
+                return (
+                  <div
+                    className={`rounded-3xl p-6 border transition-all ${
+                      isGlow
+                        ? 'border-amber-400 ring-4 ring-amber-400/50 animate-pulse shadow-lg bg-amber-50/20'
+                        : 'border-slate-200 bg-white'
+                    } ${isLocked ? 'opacity-60 pointer-events-none' : ''}`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5 text-[#932d16]" />
+                        <h3 className="text-base font-black text-slate-900">
+                          3. ผู้สำเร็จการศึกษา และภาวะการมีงานทำ
+                        </h3>
+                      </div>
+                      {isGlow && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-xs font-extrabold shadow animate-bounce">
+                          ⚡ จุดเน้นย้ำด่วน
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> ล็อกโดย สอจ.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-700">ปวช. สำเร็จการศึกษา (คน)</label>
                         <input
                           type="number"
                           value={formData.gradVocCertCount}
                           onChange={(e) => handleInputChange('gradVocCertCount', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
@@ -611,600 +1640,328 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ user, onRefreshStats }
                           type="number"
                           value={formData.gradHighVocCertCount}
                           onChange={(e) => handleInputChange('gradHighVocCertCount', Number(e.target.value))}
-                          className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700">ทำงานตรงสาขา (คน)</label>
+                        <input
+                          type="number"
+                          value={formData.employedInField}
+                          onChange={(e) => handleInputChange('employedInField', Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700">ทำงานไม่ตรงสาขา (คน)</label>
+                        <input
+                          type="number"
+                          value={formData.employedOutField}
+                          onChange={(e) => handleInputChange('employedOutField', Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700">ประกอบอาชีพอิสระ (คน)</label>
+                        <input
+                          type="number"
+                          value={formData.employedFreelance}
+                          onChange={(e) => handleInputChange('employedFreelance', Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-700">ศึกษาต่อ (คน)</label>
+                        <input
+                          type="number"
+                          value={formData.furtherStudyCount}
+                          onChange={(e) => handleInputChange('furtherStudyCount', Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                         />
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
-                      {[
-                        { key: 'employedInField', label: 'ทำงานตรงสาขา' },
-                        { key: 'employedOutField', label: 'ทำงานไม่ตรงสาขา' },
-                        { key: 'employedFreelance', label: 'อาชีพอิสระ' },
-                        { key: 'furtherStudyCount', label: 'ศึกษาต่อ' },
-                        { key: 'unemployedCount', label: 'ว่างงาน' },
-                      ].map((emp) => (
-                        <div key={emp.key} className="space-y-1">
-                          <label className="text-[11px] font-medium text-slate-600">{emp.label}</label>
-                          <input
-                            type="number"
-                            value={(formData as any)[emp.key]}
-                            onChange={(e) => handleInputChange(emp.key, Number(e.target.value))}
-                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
-                          />
-                        </div>
-                      ))}
-                    </div>
                   </div>
+                );
+              })()}
 
-                  {/* Super Admin Save Button */}
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditingCollege(null)}
-                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 cursor-pointer"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={savingStat}
-                      className="inline-flex items-center gap-2 bg-[#932d16] hover:bg-[#7a2512] text-white px-6 py-3 rounded-xl font-bold text-xs shadow-md active:scale-95 cursor-pointer transition-all"
-                    >
-                      {savingStat ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" />
-                          <span>บันทึกข้อมูลของ {editingCollege.name}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* Section 3: Monitor 29 Colleges Submission Status with "Edit Data" Action */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-[#932d16]" />
-                  <span>ติดตามและแก้ไขข้อมูลสถิติ (29 สถานศึกษา)</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  ท่านสามารถคลิกปุ่ม <strong className="text-[#932d16]">"✏️ แก้ไขข้อมูล"</strong> ในแถวของวิทยาลัยใดๆ เพื่อเข้าปรับปรุงสถิติแทนโรงเรียนได้ทันที
-                </p>
+              {/* Submit Button */}
+              <div className="flex justify-end gap-4 pt-4">
+                <button
+                  type="submit"
+                  disabled={savingStat || (!isSuperAdmin && !schoolOpenStatus)}
+                  className="px-8 py-3.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-sm rounded-2xl shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>{savingStat ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถิติของวิทยาลัย'}</span>
+                </button>
               </div>
-
-              {/* Quick Summary Pill */}
-              <div className="flex items-center gap-2 text-xs font-semibold">
-                <span className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  รายงานแล้ว: {submittedCount} แห่ง
-                </span>
-                <span className="px-3 py-1 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
-                  รอรายงาน: {29 - submittedCount} แห่ง
-                </span>
-              </div>
-            </div>
-
-            {/* Filters & Search */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อวิทยาลัย หรือรหัสสถานศึกษา..."
-                  value={statusSearch}
-                  onChange={(e) => setStatusSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#932d16]/30"
-                />
-              </div>
-              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
-                {(['ALL', 'PUBLIC', 'PRIVATE'] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setStatusFilter(t)}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                      statusFilter === t
-                        ? 'bg-white text-[#932d16] shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {t === 'ALL' ? 'ทั้งหมด' : t === 'PUBLIC' ? 'ภาครัฐ' : 'ภาคเอกชน'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Table of Colleges with Edit Button */}
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                  <tr>
-                    <th className="py-3 px-4">รหัส</th>
-                    <th className="py-3 px-4">สถานศึกษา</th>
-                    <th className="py-3 px-4">สังกัด</th>
-                    <th className="py-3 px-4 text-center">สาขา</th>
-                    <th className="py-3 px-4 text-center">สถานะ</th>
-                    <th className="py-3 px-4 text-right">นักศึกษา</th>
-                    <th className="py-3 px-4 text-right">ผบ./ครู/บุคลากร</th>
-                    <th className="py-3 px-4 text-center">การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loadingStatuses ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-8 text-slate-400">
-                        กำลังโหลดข้อมูลสถานะ...
-                      </td>
-                    </tr>
-                  ) : filteredStatuses.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-8 text-slate-400">
-                        ไม่พบข้อมูลตามคำค้นหา
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredStatuses.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-mono text-[11px] font-bold text-slate-500">
-                          {s.code}
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">
-                          {s.name}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
-                              s.type === 'PUBLIC'
-                                ? 'bg-[#932d16]/10 text-[#932d16]'
-                                : 'bg-amber-100 text-amber-900'
-                            }`}
-                          >
-                            {s.type === 'PUBLIC' ? 'รัฐบาล' : 'เอกชน'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-semibold text-slate-700">
-                          {s.programsCount}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {s.isSubmitted ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              ส่งแล้ว
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              รอส่ง
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-slate-800">
-                          {s.totalStudents.toLocaleString()} คน
-                        </td>
-                        <td className="py-3 px-4 text-right text-slate-600">
-                          {s.totalExecutives} / {s.totalTeachers} / {s.totalStaff}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => handleStartEditCollege(s)}
-                            className="inline-flex items-center gap-1 bg-[#932d16] hover:bg-[#7a2512] text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>แก้ไข</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Section 4: Add News Announcement with Image Upload / Preview */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-[#932d16]" />
-                <span>เผยแพร่ข่าวประชาสัมพันธ์ (พร้อมระบบอัปโหลดรูปภาพประกอบข่าว)</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                ข่าวที่เผยแพร่พร้อมรูปภาพ จะแสดงบน Hero Carousel หน้าแรกของระบบ UDVECSmart ทันที
-              </p>
-            </div>
-
-            <form onSubmit={handleCreateNews} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="text-xs font-bold text-slate-700">
-                    หัวข้อข่าวประชาสัมพันธ์ <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น ประกาศเปิดรับการรายงานข้อมูลสถิติ..."
-                    value={newsTitle}
-                    onChange={(e) => setNewsTitle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">หมวดหมู่</label>
-                  <select
-                    value={newsCategory}
-                    onChange={(e: any) => setNewsCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                  >
-                    <option value="ANNOUNCEMENT">ข่าวประชาสัมพันธ์ทั่วไป</option>
-                    <option value="ACTIVITY">ข่าวกิจกรรม / ผลงาน</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Photo Upload Area */}
-              <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-[#932d16]" />
-                  <span>ภาพประกอบข่าว (Cover Image)</span>
-                </label>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleNewsImageUpload}
-                    className="hidden"
-                    id="news-image-upload"
-                  />
-                  <label
-                    htmlFor="news-image-upload"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shadow-xs"
-                  >
-                    <Upload className="w-4 h-4 text-slate-500" />
-                    <span>เลือกรูปภาพจากเครื่อง</span>
-                  </label>
-
-                  <span className="text-xs text-slate-400">หรือ</span>
-
-                  <input
-                    type="text"
-                    placeholder="วาง URL ของรูปภาพ (เช่น https://...)"
-                    value={newsCoverImage || ''}
-                    onChange={(e) => setNewsCoverImage(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#932d16]/30"
-                  />
-                </div>
-
-                {/* Image Preview Box */}
-                {newsCoverImage && (
-                  <div className="relative mt-3 inline-block">
-                    <div className="w-48 h-28 rounded-xl overflow-hidden border-2 border-[#932d16]/30 shadow-md">
-                      <img
-                        src={newsCoverImage}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewsCoverImage(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 shadow hover:bg-rose-700 cursor-pointer"
-                      title="ลบรูปภาพ"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">
-                  เนื้อหาข่าว <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="รายละเอียดข่าวสารประชาสัมพันธ์..."
-                  value={newsContent}
-                  onChange={(e) => setNewsContent(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={creatingNews}
-                className="inline-flex items-center gap-2 bg-[#932d16] hover:bg-[#7a2512] text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                {creatingNews ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <PlusCircle className="w-4 h-4" />
-                    <span>เผยแพร่ข่าวสาร</span>
-                  </>
-                )}
-              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* 2. SCHOOL ADMIN VIEW: DATA ENTRY FORM FOR OWN COLLEGE */}
-      {/* ============================================================== */}
-      {!isSuperAdmin && (
-        <div className="space-y-8">
-          {/* Submission Window Alert Banner */}
-          {schoolOpenStatus ? (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3 text-emerald-900 shadow-xs">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold text-sm">ระบบเปิดรับข้อมูลสถิติ</h4>
-                <p className="text-xs text-emerald-700 mt-0.5">
-                  ท่านสามารถบันทึกและปรับปรุงข้อมูลสถิติผู้บริหาร นักศึกษา ครู บุคลากร และภาวะการมีงานทำของ{' '}
-                  <strong>{schoolInstitution?.name}</strong> ได้ตามปกติ
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-rose-50 border border-rose-300 rounded-2xl p-5 flex items-start gap-3.5 text-rose-950 shadow-sm">
-              <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-extrabold text-sm text-rose-900">
-                  ขณะนี้ระบบปิดรับการรายงานข้อมูลสถิติ
-                </h4>
-                <p className="text-xs text-rose-800 mt-1 leading-relaxed">
-                  ผู้ดูแลระบบ สอจ.อุดรธานี ได้ทำการปิดระบบรับรายงานข้อมูลแล้ว ท่านสามารถดูข้อมูลเดิมได้
-                  แต่ไม่สามารถแก้ไขหรือบันทึกได้ หากต้องการส่งข้อมูลเพิ่มเติม กรุณาประสานงานผู้ดูแลระบบ สอจ. เพื่อขอเปิดระบบ
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Data Entry Form */}
-          {loadingSchoolStat ? (
-            <div className="bg-white rounded-3xl p-12 text-center text-slate-500 border border-slate-200 shadow-sm">
-              <RefreshCw className="w-8 h-8 animate-spin text-[#932d16] mx-auto mb-3" />
-              <p className="text-sm font-bold text-slate-700">กำลังโหลดข้อมูลสถิติของสถานศึกษา...</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmitStat} className="space-y-8">
-              {/* Fieldset 1: ผู้บริหาร ครู และบุคลากรทางการศึกษา */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-[#932d16]" />
-                    <span>1. ผู้บริหาร ครู และบุคลากรทางการศึกษา</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    กรอกจำนวนผู้บริหาร (ผอ., รอง ผอ.), จำนวนครูผู้สอน, และบุคลากรสนับสนุน
-                  </p>
+      {/* =========================================================================
+          MODALS
+         ========================================================================= */}
+      {/* 1. Modal Add Institution */}
+      {showAddInstitutionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setShowAddInstitutionModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
+              <School className="w-5 h-5 text-[#932d16]" />
+              <span>เพิ่มสถานศึกษาใหม่ในสังกัด</span>
+            </h3>
+            <form onSubmit={handleCreateInstitution} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">รหัสสถานศึกษา *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น 13410111"
+                    value={newInstCode}
+                    onChange={(e) => setNewInstCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">
-                      จำนวนผู้บริหารสถานศึกษา (คน) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.totalExecutives}
-                      onChange={(e) => handleInputChange('totalExecutives', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">จำนวนครูผู้สอน (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.totalTeachers}
-                      onChange={(e) => handleInputChange('totalTeachers', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">จำนวนบุคลากรทางการศึกษา (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.totalStaff}
-                      onChange={(e) => handleInputChange('totalStaff', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">ประเภทสถานศึกษา *</label>
+                  <select
+                    value={newInstType}
+                    onChange={(e) => setNewInstType(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    <option value="PUBLIC">ภาครัฐ</option>
+                    <option value="PRIVATE">ภาคเอกชน</option>
+                  </select>
                 </div>
               </div>
-
-              {/* Fieldset 2: นักเรียน/นักศึกษา จำแนกเพศ และชั้นปี */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#932d16]" />
-                    <span>2. จำนวนนักเรียน / นักศึกษา จำแนกเพศ และชั้นปี</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    กรอกยอดจำนวนนักเรียนที่กำลังศึกษาอยู่ในภาคเรียนที่ 1 ปีการศึกษา 2568
-                  </p>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ชื่อสถานศึกษา *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น วิทยาลัยเทคนิคอุดรธานี 2"
+                  value={newInstName}
+                  onChange={(e) => setNewInstName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ชื่อผู้บริหาร (ผอ.)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น นายสมเกียรติ ยิ่งเจริญ"
+                  value={newInstDirector}
+                  onChange={(e) => setNewInstDirector(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">เบอร์โทรศัพท์</label>
+                  <input
+                    type="text"
+                    value={newInstPhone}
+                    onChange={(e) => setNewInstPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">นักเรียนชาย (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.maleStudents}
-                      onChange={(e) => handleInputChange('maleStudents', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">นักเรียนหญิง (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.femaleStudents}
-                      onChange={(e) => handleInputChange('femaleStudents', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 md:col-span-1">
-                    <label className="text-xs font-bold text-slate-500">รวมทั้งหมด (คำนวณอัตโนมัติ)</label>
-                    <div className="w-full px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-[#932d16]">
-                      {(formData.maleStudents + formData.femaleStudents).toLocaleString()} คน
-                    </div>
-                  </div>
-                </div>
-
-                {/* Grade levels */}
-                <div className="pt-4 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-                    จำแนกตามระดับชั้นปี
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                    {[
-                      { key: 'vocCert1', label: 'ปวช. 1' },
-                      { key: 'vocCert2', label: 'ปวช. 2' },
-                      { key: 'vocCert3', label: 'ปวช. 3' },
-                      { key: 'highVocCert1', label: 'ปวส. 1' },
-                      { key: 'highVocCert2', label: 'ปวส. 2' },
-                      { key: 'bachelorCount', label: 'ปริญญาตรี (ทล.บ.)' },
-                    ].map((g) => (
-                      <div key={g.key} className="space-y-1">
-                        <label className="text-[11px] font-medium text-slate-600">{g.label}</label>
-                        <input
-                          type="number"
-                          disabled={!schoolOpenStatus}
-                          value={(formData as any)[g.key]}
-                          onChange={(e) => handleInputChange(g.key, Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">เว็บไซต์</label>
+                  <input
+                    type="url"
+                    value={newInstWebsite}
+                    onChange={(e) => setNewInstWebsite(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  />
                 </div>
               </div>
-
-              {/* Fieldset 3: ผู้สำเร็จการศึกษาและภาวะการมีงานทำ */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-[#932d16]" />
-                    <span>3. ข้อมูลผู้สำเร็จการศึกษา และภาวะการมีงานทำ</span>
-                  </h3>
-                </div>
-
-                {/* Graduates */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">ปวช. สำเร็จการศึกษา (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.gradVocCertCount}
-                      onChange={(e) => handleInputChange('gradVocCertCount', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">ปวส. สำเร็จการศึกษา (คน)</label>
-                    <input
-                      type="number"
-                      disabled={!schoolOpenStatus}
-                      value={formData.gradHighVocCertCount}
-                      onChange={(e) => handleInputChange('gradHighVocCertCount', Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Employment Breakdown */}
-                <div className="pt-4 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-                    จำแนกตามประเภทการมีงานทำ
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {[
-                      { key: 'employedInField', label: 'ทำงานตรงสาขาวิชาชีพ' },
-                      { key: 'employedOutField', label: 'ทำงานไม่ตรงสาขาวิชาชีพ' },
-                      { key: 'employedFreelance', label: 'ประกอบอาชีพอิสระ' },
-                      { key: 'furtherStudyCount', label: 'ศึกษาต่อ' },
-                      { key: 'unemployedCount', label: 'ว่างงาน / ยังไม่มีงานทำ' },
-                    ].map((emp) => (
-                      <div key={emp.key} className="space-y-1">
-                        <label className="text-[11px] font-medium text-slate-600">{emp.label}</label>
-                        <input
-                          type="number"
-                          disabled={!schoolOpenStatus}
-                          value={(formData as any)[emp.key]}
-                          onChange={(e) => handleInputChange(emp.key, Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Workplace Breakdown */}
-                <div className="pt-4 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-                    จำแนกตามประเภทหน่วยงานที่ทำงาน
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                      { key: 'workGov', label: 'หน่วยงานของรัฐ / รัฐวิสาหกิจ' },
-                      { key: 'workPrivate', label: 'บริษัท / หน่วยงานเอกชน' },
-                      { key: 'workSelf', label: 'ประกอบธุรกิจส่วนตัว' },
-                    ].map((w) => (
-                      <div key={w.key} className="space-y-1">
-                        <label className="text-[11px] font-medium text-slate-600">{w.label}</label>
-                        <input
-                          type="number"
-                          disabled={!schoolOpenStatus}
-                          value={(formData as any)[w.key]}
-                          onChange={(e) => handleInputChange(w.key, Number(e.target.value))}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#932d16]/30 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex items-center justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInstitutionModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
+                >
+                  ยกเลิก
+                </button>
                 <button
                   type="submit"
-                  disabled={!schoolOpenStatus || savingStat}
-                  className={`inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold text-sm shadow-md transition-all active:scale-95 cursor-pointer ${
-                    schoolOpenStatus
-                      ? 'bg-[#932d16] hover:bg-[#7a2512] text-white shadow-[#932d16]/30'
-                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                  }`}
+                  disabled={creatingInst}
+                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
                 >
-                  {savingStat ? (
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Save className="w-5 h-5" />
-                      <span>บันทึกข้อมูลสถิติของวิทยาลัย</span>
-                    </>
-                  )}
+                  {creatingInst ? 'กำลังบันทึก...' : 'บันทึกสถานศึกษา'}
                 </button>
               </div>
             </form>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal Add / Edit User */}
+      {showUserModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setShowUserModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-[#932d16]" />
+              <span>{editingUserId ? 'แก้ไขบัญชีผู้ใช้งาน' : 'เพิ่มบัญชีผู้ใช้งานใหม่'}</span>
+            </h3>
+            <form onSubmit={handleSaveUser} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Username / อีเมล *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น admin.udtech@udpvec.go.th"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">
+                  รหัสผ่าน {editingUserId && '(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)'}
+                </label>
+                <input
+                  type="password"
+                  required={!editingUserId}
+                  placeholder="••••••••"
+                  value={userPassword}
+                  onChange={(e) => setUserPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ชื่อ - นามสกุล *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น แอดมิน วท.อุดรธานี"
+                  value={userFullName}
+                  onChange={(e) => setUserFullName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">บทบาท *</label>
+                <select
+                  value={userRole}
+                  onChange={(e) => setUserRole(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                >
+                  <option value="SCHOOL_ADMIN">แอดมินสถานศึกษา (school_admin)</option>
+                  <option value="SUPER_ADMIN">แอดมิน สอจ. (super_admin)</option>
+                </select>
+              </div>
+              {userRole === 'SCHOOL_ADMIN' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">สังกัดสถานศึกษา *</label>
+                  <select
+                    value={userInstitutionId}
+                    onChange={(e) => setUserInstitutionId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    <option value="">-- เลือกสถานศึกษา --</option>
+                    {submissionStatuses.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowUserModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
+                >
+                  {savingUser ? 'กำลังบันทึก...' : 'บันทึกข้อมูลผู้ใช้'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal Edit Contact Info */}
+      {showContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setShowContactModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-[#932d16]" />
+              <span>แก้ไขข้อมูลติดต่อ สอจ. (Footer Info)</span>
+            </h3>
+            <form onSubmit={handleSaveContactInfo} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ที่อยู่สำนักงาน สอจ.</label>
+                <textarea
+                  rows={2}
+                  value={contactAddress}
+                  onChange={(e) => setContactAddress(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">เบอร์โทรศัพท์</label>
+                <input
+                  type="text"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ลิงก์เฟซบุ๊กแฟนเพจ</label>
+                <input
+                  type="url"
+                  value={contactFacebook}
+                  onChange={(e) => setContactFacebook(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowContactModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
+                >
+                  บันทึกข้อมูลติดต่อ
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

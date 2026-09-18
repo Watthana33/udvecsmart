@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
-import { InstitutionType } from '@prisma/client';
+import { InstitutionType, Role } from '@prisma/client';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
 
 /**
  * ดึงรายชื่อสถานศึกษาทั้งหมด พร้อมรองรับการค้นหาและกรอง
@@ -124,3 +125,156 @@ export async function getInstitutionById(req: Request, res: Response): Promise<v
     });
   }
 }
+
+/**
+ * อัปเดตข้อมูลผู้บริหาร / ภาพถ่าย / ข้อมูลติดต่อสถานศึกษา
+ * PATCH /api/institutions/:id/director
+ */
+export async function updateInstitutionDirector(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    // ตรวจสอบสิทธิ์: SUPER_ADMIN ทำได้ทุกแห่ง, SCHOOL_ADMIN ทำได้เฉพาะสถานศึกษาตนเอง
+    if (user?.role !== Role.SUPER_ADMIN && user?.institutionId !== id) {
+      res.status(403).json({
+        status: 'error',
+        message: 'คุณไม่มีสิทธิ์แก้ไขข้อมูลของสถานศึกษานี้',
+      });
+      return;
+    }
+
+    const { directorName, position, photoUrl, phone, website, address, programsCount } = req.body;
+
+    // 1. อัปเดตข้อมูลสถานศึกษา
+    const updatedInst = await prisma.institution.update({
+      where: { id },
+      data: {
+        ...(phone !== undefined ? { phone } : {}),
+        ...(website !== undefined ? { website } : {}),
+        ...(address !== undefined ? { address } : {}),
+        ...(programsCount !== undefined ? { programsCount: Number(programsCount) } : {}),
+      },
+    });
+
+    // 2. อัปเดตหรือสร้าง Personnel ลำดับที่ 1 (ผู้บริหาร)
+    if (directorName !== undefined || photoUrl !== undefined || position !== undefined) {
+      const existingPersonnel = await prisma.personnel.findFirst({
+        where: { institutionId: id, order: 1 },
+      });
+
+      if (existingPersonnel) {
+        await prisma.personnel.update({
+          where: { id: existingPersonnel.id },
+          data: {
+            ...(directorName ? { name: directorName } : {}),
+            ...(position ? { position } : {}),
+            ...(photoUrl !== undefined ? { photoUrl } : {}),
+          },
+        });
+      } else {
+        await prisma.personnel.create({
+          data: {
+            name: directorName || 'ผู้อำนวยการวิทยาลัย',
+            position: position || 'ผู้อำนวยการวิทยาลัย',
+            photoUrl: photoUrl || null,
+            order: 1,
+            institutionId: id,
+          },
+        });
+      }
+    }
+
+    // ดึงข้อมูลอัปเดตล่าสุดส่งกลับ
+    const result = await prisma.institution.findUnique({
+      where: { id },
+      include: {
+        personnels: { orderBy: { order: 'asc' } },
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'อัปเดตข้อมูลผู้บริหารและสถานศึกษาสำเร็จ',
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('updateInstitutionDirector error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถอัปเดตข้อมูลผู้บริหารได้',
+      detail: error.message,
+    });
+  }
+}
+
+/**
+ * เพิ่มสถานศึกษาใหม่ (สำหรับ SUPER_ADMIN)
+ * POST /api/institutions
+ */
+export async function createInstitution(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (req.user?.role !== Role.SUPER_ADMIN) {
+      res.status(403).json({
+        status: 'error',
+        message: 'มีเพียงผู้ดูแลระบบ สอจ. เท่านั้นที่มีสิทธิ์เพิ่มสถานศึกษา',
+      });
+      return;
+    }
+
+    const { code, name, type, directorName, phone, website, address, programsCount } = req.body;
+
+    if (!code || !name) {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณาระบุรหัสและชื่อสถานศึกษาให้ครบถ้วน',
+      });
+      return;
+    }
+
+    const existing = await prisma.institution.findUnique({ where: { code } });
+    if (existing) {
+      res.status(400).json({
+        status: 'error',
+        message: `รหัสสถานศึกษา ${code} มีอยู่ในระบบแล้ว`,
+      });
+      return;
+    }
+
+    const newInst = await prisma.institution.create({
+      data: {
+        code,
+        name,
+        type: type === 'PRIVATE' ? InstitutionType.PRIVATE : InstitutionType.PUBLIC,
+        phone: phone || null,
+        website: website || null,
+        address: address || null,
+        programsCount: Number(programsCount) || 10,
+        personnels: {
+          create: {
+            name: directorName || 'ผู้อำนวยการวิทยาลัย',
+            position: 'ผู้อำนวยการวิทยาลัย',
+            order: 1,
+          },
+        },
+      },
+      include: {
+        personnels: true,
+      },
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'เพิ่มสถานศึกษาใหม่เรียบร้อยแล้ว',
+      data: newInst,
+    });
+  } catch (error: any) {
+    console.error('createInstitution error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถสร้างสถานศึกษาได้',
+      detail: error.message,
+    });
+  }
+}
+

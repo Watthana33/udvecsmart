@@ -87,3 +87,81 @@ export async function updateSubmissionToggle(req: Request, res: Response): Promi
   }
 }
 
+/**
+ * ตั้งค่าเปิด-ปิดการกรอกข้อมูลแยกตามหมวด และเลือกเอฟเฟกต์ไฟกระพริบเน้นย้ำ (สำหรับ SUPER_ADMIN)
+ * PUT /api/settings/submission-permissions
+ */
+export async function updateSubmissionPermissions(req: Request, res: Response): Promise<void> {
+  try {
+    const {
+      allowSectionGeneral,
+      allowSectionGrades,
+      allowSectionGraduates,
+      glowSection,
+    } = req.body;
+
+    const upsertPromises = [];
+
+    if (allowSectionGeneral !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_general' },
+          update: { value: String(allowSectionGeneral) },
+          create: { key: 'allow_section_general', value: String(allowSectionGeneral), description: 'อนุญาตให้แก้ไขข้อมูลทั่วไปและผู้บริหาร' },
+        })
+      );
+    }
+
+    if (allowSectionGrades !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_grades' },
+          update: { value: String(allowSectionGrades) },
+          create: { key: 'allow_section_grades', value: String(allowSectionGrades), description: 'อนุญาตให้แก้ไขสถิตินักเรียนแยกชั้นปี' },
+        })
+      );
+    }
+
+    if (allowSectionGraduates !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_graduates' },
+          update: { value: String(allowSectionGraduates) },
+          create: { key: 'allow_section_graduates', value: String(allowSectionGraduates), description: 'อนุญาตให้แก้ไขผู้สำเร็จการศึกษาและการมีงานทำ' },
+        })
+      );
+    }
+
+    if (glowSection !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'glow_section' },
+          update: { value: String(glowSection) },
+          create: { key: 'glow_section', value: String(glowSection), description: 'แท็บที่มีไฟกระพริบวิบวับเน้นย้ำ' },
+        })
+      );
+    }
+
+    await Promise.all(upsertPromises);
+
+    res.json({
+      status: 'success',
+      message: 'บันทึกการตั้งค่าสิทธิ์และการเน้นย้ำเรียบร้อยแล้ว',
+      data: {
+        allowSectionGeneral,
+        allowSectionGrades,
+        allowSectionGraduates,
+        glowSection,
+      },
+    });
+  } catch (error: any) {
+    console.error('updateSubmissionPermissions error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกการตั้งค่าสิทธิ์ได้',
+      detail: error.message,
+    });
+  }
+}
+
+

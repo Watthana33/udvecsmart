@@ -272,7 +272,7 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
     const academicYear = req.query.academicYear ? Number(req.query.academicYear) : 2568;
     const semester = req.query.semester ? Number(req.query.semester) : 1;
 
-    const [stat, institution, submissionSetting] = await Promise.all([
+    const [stat, institution, settingsList] = await Promise.all([
       prisma.schoolStat.findUnique({
         where: {
           institutionId_academicYear_semester: {
@@ -284,18 +284,56 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
       }),
       prisma.institution.findUnique({
         where: { id: institutionId },
-        select: { id: true, name: true, code: true, type: true, programsCount: true },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          programsCount: true,
+          phone: true,
+          website: true,
+          address: true,
+          personnels: {
+            where: { order: 1 },
+            select: { name: true, position: true, photoUrl: true },
+          },
+        },
       }),
-      prisma.siteSetting.findUnique({
-        where: { key: 'is_data_submission_open' },
+      prisma.siteSetting.findMany({
+        where: {
+          key: {
+            in: [
+              'is_data_submission_open',
+              'allow_section_general',
+              'allow_section_grades',
+              'allow_section_graduates',
+              'glow_section',
+            ],
+          },
+        },
       }),
     ]);
 
-    const isSubmissionOpen = submissionSetting ? submissionSetting.value === 'true' : true;
+    const settingsMap: Record<string, string> = {};
+    settingsList.forEach((s) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    const isSubmissionOpen = settingsMap['is_data_submission_open'] !== 'false';
+    const allowSectionGeneral = settingsMap['allow_section_general'] !== 'false';
+    const allowSectionGrades = settingsMap['allow_section_grades'] !== 'false';
+    const allowSectionGraduates = settingsMap['allow_section_graduates'] !== 'false';
+    const glowSection = settingsMap['glow_section'] || 'none';
 
     res.json({
       status: 'success',
       isSubmissionOpen,
+      permissions: {
+        allowSectionGeneral,
+        allowSectionGrades,
+        allowSectionGraduates,
+        glowSection,
+      },
       institution,
       academicYear,
       semester,
@@ -448,6 +486,44 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
       },
     });
 
+    // หากมีการส่งข้อมูลผู้บริหาร หรือข้อมูลติดต่อสถานศึกษามาด้วย ให้อัปเดตไปพร้อมกัน
+    if (body.directorName || body.photoUrl !== undefined || body.phone || body.website || body.address) {
+      await prisma.institution.update({
+        where: { id: targetInstitutionId },
+        data: {
+          ...(body.phone !== undefined ? { phone: body.phone } : {}),
+          ...(body.website !== undefined ? { website: body.website } : {}),
+          ...(body.address !== undefined ? { address: body.address } : {}),
+        },
+      });
+
+      if (body.directorName || body.photoUrl !== undefined) {
+        const existingPersonnel = await prisma.personnel.findFirst({
+          where: { institutionId: targetInstitutionId, order: 1 },
+        });
+
+        if (existingPersonnel) {
+          await prisma.personnel.update({
+            where: { id: existingPersonnel.id },
+            data: {
+              ...(body.directorName ? { name: body.directorName } : {}),
+              ...(body.photoUrl !== undefined ? { photoUrl: body.photoUrl } : {}),
+            },
+          });
+        } else {
+          await prisma.personnel.create({
+            data: {
+              name: body.directorName || 'ผู้อำนวยการวิทยาลัย',
+              position: 'ผู้อำนวยการวิทยาลัย',
+              photoUrl: body.photoUrl || null,
+              order: 1,
+              institutionId: targetInstitutionId,
+            },
+          });
+        }
+      }
+    }
+
     res.json({
       status: 'success',
       message: 'บันทึกข้อมูลสถิติเรียบร้อยแล้ว',
@@ -494,6 +570,9 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
           institutionId: true,
           totalStudents: true,
           totalExecutives: true,
+          vocCertCount: true,
+          highVocCertCount: true,
+          bachelorCount: true,
           maleStudents: true,
           femaleStudents: true,
           totalTeachers: true,
@@ -520,6 +599,9 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
         isSubmitted: !!stat,
         totalStudents: stat?.totalStudents ?? 0,
         totalExecutives: stat?.totalExecutives ?? 1,
+        vocCertCount: stat?.vocCertCount ?? 0,
+        highVocCertCount: stat?.highVocCertCount ?? 0,
+        bachelorCount: stat?.bachelorCount ?? 0,
         maleStudents: stat?.maleStudents ?? 0,
         femaleStudents: stat?.femaleStudents ?? 0,
         totalTeachers: stat?.totalTeachers ?? 0,

@@ -1,12 +1,31 @@
 import React, { useState, useMemo } from 'react';
-import { Institution, InstitutionType } from '../../types';
-import { Search, Phone, MapPin, ExternalLink, School, UserCheck, CheckCircle2, User, BookOpen } from 'lucide-react';
+import { Institution, InstitutionType, UserProfile } from '../../types';
+import {
+  Search,
+  Phone,
+  MapPin,
+  ExternalLink,
+  School,
+  UserCheck,
+  CheckCircle2,
+  User,
+  BookOpen,
+  Camera,
+  Edit2,
+  X,
+  Upload,
+  Save,
+  Loader2,
+} from 'lucide-react';
+import { updateInstitutionDirector } from '../../services/api';
 
 interface InstitutionListProps {
   institutions: Institution[];
   loading: boolean;
   selectedInstitutionId: string;
   onSelectInstitution: (id: string) => void;
+  currentUser?: UserProfile | null;
+  onRefreshInstitutions?: () => void;
 }
 
 export const InstitutionList: React.FC<InstitutionListProps> = ({
@@ -14,9 +33,105 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
   loading,
   selectedInstitutionId,
   onSelectInstitution,
+  currentUser,
+  onRefreshInstitutions,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<'ALL' | InstitutionType>('ALL');
+
+  // State สำหรับ Modal แก้ไขข้อมูล/ภาพถ่ายผู้บริหาร
+  const [editingInst, setEditingInst] = useState<Institution | null>(null);
+  const [directorName, setDirectorName] = useState('');
+  const [directorPosition, setDirectorPosition] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [phone, setPhone] = useState('');
+  const [website, setWebsite] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{ title: string; desc: string; type: 'success' | 'error' } | null>(null);
+
+  const openEditModal = (inst: Institution) => {
+    setEditingInst(inst);
+    const p = inst.personnels?.[0];
+    setDirectorName(p?.name || '');
+    setDirectorPosition(p?.position || 'ผู้อำนวยการวิทยาลัย');
+    setPhotoUrl(p?.photoUrl || '');
+    setPhone(inst.phone || '');
+    setWebsite(inst.website || '');
+  };
+
+  const closeEditModal = () => {
+    setEditingInst(null);
+  };
+
+  // บีบอัดและย่อขนาดภาพด้วย Canvas ก่อนแปลงเป็น Data URL
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setPhotoUrl(compressedDataUrl);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveDirector = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInst) return;
+
+    try {
+      setIsSaving(true);
+      await updateInstitutionDirector(editingInst.id, {
+        directorName,
+        position: directorPosition,
+        photoUrl,
+        phone,
+        website,
+      });
+
+      setToastMsg({
+        title: 'บันทึกสำเร็จ!',
+        desc: `อัปเดตข้อมูลและภาพถ่ายผู้บริหาร ${editingInst.name} เรียบร้อยแล้ว`,
+        type: 'success',
+      });
+      setTimeout(() => setToastMsg(null), 4500);
+      closeEditModal();
+      if (onRefreshInstitutions) {
+        onRefreshInstitutions();
+      }
+    } catch (err: any) {
+      console.error('Failed to update director:', err);
+      setToastMsg({
+        title: 'บันทึกไม่สำเร็จ',
+        desc: err?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้บริหาร',
+        type: 'error',
+      });
+      setTimeout(() => setToastMsg(null), 4500);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     return institutions.filter((inst) => {
@@ -121,6 +236,10 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
             const directorPhoto = directorPersonnel?.photoUrl;
             const isSelected = selectedInstitutionId === inst.id;
 
+            const canEdit =
+              currentUser?.role === 'SUPER_ADMIN' ||
+              (currentUser?.role === 'SCHOOL_ADMIN' && currentUser?.institution?.id === inst.id);
+
             return (
               <div
                 key={inst.id}
@@ -175,18 +294,38 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                       <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#932d16] text-white flex items-center justify-center text-[10px] shadow border border-white">
                         <UserCheck className="w-3 h-3" />
                       </span>
+                      {canEdit && (
+                        <button
+                          onClick={() => openEditModal(inst)}
+                          title="อัปโหลด/เปลี่ยนภาพผู้บริหาร"
+                          className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-950 flex items-center justify-center shadow-md border border-white transition-all transform hover:scale-110 z-10"
+                        >
+                          <Camera className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
 
                     {/* Director Info */}
                     <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#932d16] block">
-                        ผู้บริหารสถานศึกษา
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#932d16] block">
+                          ผู้บริหารสถานศึกษา
+                        </span>
+                        {canEdit && (
+                          <button
+                            onClick={() => openEditModal(inst)}
+                            className="text-[10px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 hover:underline"
+                          >
+                            <Edit2 className="w-2.5 h-2.5" />
+                            <span>แก้ไข</span>
+                          </button>
+                        )}
+                      </div>
                       <h4 className="font-bold text-slate-900 text-sm leading-snug truncate mt-0.5" title={director}>
                         {director}
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                        ผู้อำนวยการ{inst.name.replace('วิทยาลัย', 'ว.')}
+                        {directorPersonnel?.position || `ผู้อำนวยการ${inst.name.replace('วิทยาลัย', 'ว.')}`}
                       </p>
                     </div>
                   </div>
@@ -251,6 +390,155 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div
+            className={`p-4 rounded-2xl shadow-2xl border flex items-center gap-3 text-sm ${
+              toastMsg.type === 'success'
+                ? 'bg-emerald-800 text-white border-emerald-700'
+                : 'bg-rose-800 text-white border-rose-700'
+            }`}
+          >
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-bold">{toastMsg.title}</p>
+              <p className="text-xs opacity-90">{toastMsg.desc}</p>
+            </div>
+            <button onClick={() => setToastMsg(null)} className="ml-2 opacity-70 hover:opacity-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: อัปโหลด/แก้ไขภาพถ่ายและข้อมูลผู้บริหาร */}
+      {editingInst && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 overflow-hidden relative">
+            <button
+              onClick={closeEditModal}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-800 flex items-center justify-center font-bold">
+                <Camera className="w-5 h-5 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">แก้ไขภาพถ่ายและข้อมูลผู้บริหาร</h3>
+                <p className="text-xs text-slate-500 font-medium">{editingInst.name}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveDirector} className="space-y-4">
+              {/* Photo Upload & Preview Frame */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                <div className="w-24 h-32 rounded-2xl overflow-hidden bg-white border-2 border-amber-500/30 shadow-md flex items-center justify-center shrink-0">
+                  {photoUrl ? (
+                    <img src={photoUrl} alt="ตัวอย่างภาพผู้บริหาร" className="w-full h-full object-cover object-top" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                      <User className="w-8 h-8 mb-1 opacity-50" />
+                      <span className="text-[10px] leading-tight">ยังไม่มีภาพผู้บริหาร</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2 w-full text-left">
+                  <label className="text-xs font-bold text-slate-700 block">อัปโหลดภาพผู้บริหารใหม่</label>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-sm">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>เลือกไฟล์รูปภาพจากเครื่อง</span>
+                    <input type="file" accept="image/*" onChange={handlePhotoFileChange} className="hidden" />
+                  </label>
+                  <div className="pt-1">
+                    <span className="text-[11px] text-slate-400 block mb-1">หรือวางลิงก์รูปภาพ (Image URL):</span>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/photo.jpg"
+                      value={photoUrl.startsWith('data:') ? '' : photoUrl}
+                      onChange={(e) => setPhotoUrl(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Name and Position */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">ชื่อ - นามสกุล ผู้บริหาร</label>
+                  <input
+                    type="text"
+                    required
+                    value={directorName}
+                    onChange={(e) => setDirectorName(e.target.value)}
+                    placeholder="เช่น นายสมหมาย มงคลชัย"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">ตำแหน่ง</label>
+                  <input
+                    type="text"
+                    value={directorPosition}
+                    onChange={(e) => setDirectorPosition(e.target.value)}
+                    placeholder="ผู้อำนวยการวิทยาลัย"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Phone & Website */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">เบอร์โทรศัพท์ติดต่อ</label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="เช่น 042-221538"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">เว็บไซต์วิทยาลัย</label>
+                  <input
+                    type="url"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end items-center gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-xl transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 text-xs font-bold bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl shadow transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลผู้บริหาร'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </section>

@@ -94,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Main Navigation Tabs */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 text-xs xl:text-sm font-medium whitespace-nowrap ml-2 xl:ml-6 shrink-0">
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 text-xs xl:text-sm font-medium whitespace-nowrap ml-7 xl:ml-12 shrink-0">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;

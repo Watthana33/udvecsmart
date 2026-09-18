@@ -17,6 +17,20 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false })
   const [imgInfo, setImgInfo] = useState<{ width: number; height: number; ratio: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Listen for banner update events across components and tabs
+  useEffect(() => {
+    const handleUpdate = () => {
+      const stored = localStorage.getItem('udpvecsmart_banner_image') || '/banner.png';
+      setBannerUrl(stored);
+    };
+    window.addEventListener('udpvecsmart_banner_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('udpvecsmart_banner_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   // Detect image aspect ratio when preview URL changes
   useEffect(() => {
     if (!previewUrl) return;
@@ -47,6 +61,7 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false })
   const handleSaveBanner = () => {
     localStorage.setItem('udpvecsmart_banner_image', previewUrl);
     setBannerUrl(previewUrl);
+    window.dispatchEvent(new Event('udpvecsmart_banner_updated'));
     setIsModalOpen(false);
   };
 
@@ -55,6 +70,7 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false })
     localStorage.removeItem('udpvecsmart_banner_image');
     setBannerUrl('/banner.png');
     setPreviewUrl('/banner.png');
+    window.dispatchEvent(new Event('udpvecsmart_banner_updated'));
     setIsModalOpen(false);
   };
 
@@ -80,6 +96,7 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false })
         {isAdmin && (
           <div className="absolute top-3 right-3 sm:top-4 sm:right-6 opacity-85 group-hover:opacity-100 transition-opacity">
             <button
+              id="navbar-banner-changer-btn"
               onClick={() => {
                 setPreviewUrl(bannerUrl);
                 setIsModalOpen(true);

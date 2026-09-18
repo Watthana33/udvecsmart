@@ -164,4 +164,193 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
   }
 }
 
+export interface AcademicPeriodItem {
+  id: string;
+  year: number;
+  semester: number;
+  isCurrent: boolean;
+}
+
+const DEFAULT_ACADEMIC_PERIODS: AcademicPeriodItem[] = [
+  { id: '2568-1', year: 2568, semester: 1, isCurrent: true },
+  { id: '2568-2', year: 2568, semester: 2, isCurrent: false },
+  { id: '2567-2', year: 2567, semester: 2, isCurrent: false },
+  { id: '2567-1', year: 2567, semester: 1, isCurrent: false },
+];
+
+/**
+ * ดึงรายการรอบปีการศึกษาและภาคเรียนทั้งหมด
+ * GET /api/settings/academic-periods
+ */
+export async function getAcademicPeriods(_req: Request, res: Response): Promise<void> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: 'academic_periods' },
+    });
+
+    let periods: AcademicPeriodItem[] = DEFAULT_ACADEMIC_PERIODS;
+    if (setting?.value) {
+      try {
+        periods = JSON.parse(setting.value);
+      } catch {
+        periods = DEFAULT_ACADEMIC_PERIODS;
+      }
+    }
+
+    res.json({
+      status: 'success',
+      data: periods,
+    });
+  } catch (error: any) {
+    console.error('getAcademicPeriods error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลรอบปีการศึกษาได้' });
+  }
+}
+
+/**
+ * เพิ่มรอบปีการศึกษาและภาคเรียนใหม่ (เฉพาะ SUPER_ADMIN)
+ * POST /api/settings/academic-periods
+ */
+export async function createAcademicPeriod(req: Request, res: Response): Promise<void> {
+  try {
+    const { year, semester, isCurrent = false } = req.body;
+    const numYear = Number(year);
+    const numSemester = Number(semester);
+
+    if (!numYear || (numSemester !== 1 && numSemester !== 2)) {
+      res.status(400).json({ status: 'error', message: 'กรุณาระบุปีการศึกษา (พ.ศ.) และภาคเรียน (1 หรือ 2) ให้ถูกต้อง' });
+      return;
+    }
+
+    const setting = await prisma.siteSetting.findUnique({ where: { key: 'academic_periods' } });
+    let periods: AcademicPeriodItem[] = DEFAULT_ACADEMIC_PERIODS;
+    if (setting?.value) {
+      try { periods = JSON.parse(setting.value); } catch { periods = DEFAULT_ACADEMIC_PERIODS; }
+    }
+
+    const id = `${numYear}-${numSemester}`;
+    if (periods.some((p) => p.id === id || (p.year === numYear && p.semester === numSemester))) {
+      res.status(400).json({ status: 'error', message: `รอบปีการศึกษา ${numYear} ภาคเรียนที่ ${numSemester} มีอยู่ในระบบแล้ว` });
+      return;
+    }
+
+    if (isCurrent) {
+      periods = periods.map((p) => ({ ...p, isCurrent: false }));
+    }
+
+    const newPeriod: AcademicPeriodItem = {
+      id,
+      year: numYear,
+      semester: numSemester,
+      isCurrent: Boolean(isCurrent),
+    };
+
+    periods.push(newPeriod);
+    periods.sort((a, b) => (b.year !== a.year ? b.year - a.year : b.semester - a.semester));
+
+    await prisma.siteSetting.upsert({
+      where: { key: 'academic_periods' },
+      update: { value: JSON.stringify(periods) },
+      create: { key: 'academic_periods', value: JSON.stringify(periods), description: 'รอบปีการศึกษาและภาคเรียนที่เปิดให้กรอกข้อมูล' },
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: `เพิ่มรอบปีการศึกษา ${numYear} ภาคเรียนที่ ${numSemester} สำเร็จ`,
+      data: periods,
+    });
+  } catch (error: any) {
+    console.error('createAcademicPeriod error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถเพิ่มรอบปีการศึกษาได้' });
+  }
+}
+
+/**
+ * ลบรอบปีการศึกษา (เฉพาะ SUPER_ADMIN)
+ * DELETE /api/settings/academic-periods/:id
+ */
+export async function deleteAcademicPeriod(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const setting = await prisma.siteSetting.findUnique({ where: { key: 'academic_periods' } });
+    let periods: AcademicPeriodItem[] = DEFAULT_ACADEMIC_PERIODS;
+    if (setting?.value) {
+      try { periods = JSON.parse(setting.value); } catch { periods = DEFAULT_ACADEMIC_PERIODS; }
+    }
+
+    if (periods.length <= 1) {
+      res.status(400).json({ status: 'error', message: 'ระบบต้องมีรอบปีการศึกษาอย่างน้อย 1 รายการ ไม่สามารถลบทั้งหมดได้' });
+      return;
+    }
+
+    const target = periods.find((p) => p.id === id);
+    if (!target) {
+      res.status(404).json({ status: 'error', message: 'ไม่พบรอบปีการศึกษาที่ต้องการลบ' });
+      return;
+    }
+
+    periods = periods.filter((p) => p.id !== id);
+    if (target.isCurrent && periods.length > 0) {
+      periods[0].isCurrent = true;
+    }
+
+    await prisma.siteSetting.upsert({
+      where: { key: 'academic_periods' },
+      update: { value: JSON.stringify(periods) },
+      create: { key: 'academic_periods', value: JSON.stringify(periods), description: 'รอบปีการศึกษาและภาคเรียนที่เปิดให้กรอกข้อมูล' },
+    });
+
+    res.json({
+      status: 'success',
+      message: `ลบรอบปีการศึกษา ${target.year} ภาคเรียนที่ ${target.semester} เรียบร้อยแล้ว`,
+      data: periods,
+    });
+  } catch (error: any) {
+    console.error('deleteAcademicPeriod error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถลบรอบปีการศึกษาได้' });
+  }
+}
+
+/**
+ * ตั้งรอบปีการศึกษาปัจจุบัน (เฉพาะ SUPER_ADMIN)
+ * PUT /api/settings/academic-periods/:id/current
+ */
+export async function setCurrentAcademicPeriod(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const setting = await prisma.siteSetting.findUnique({ where: { key: 'academic_periods' } });
+    let periods: AcademicPeriodItem[] = DEFAULT_ACADEMIC_PERIODS;
+    if (setting?.value) {
+      try { periods = JSON.parse(setting.value); } catch { periods = DEFAULT_ACADEMIC_PERIODS; }
+    }
+
+    const target = periods.find((p) => p.id === id);
+    if (!target) {
+      res.status(404).json({ status: 'error', message: 'ไม่พบรอบปีการศึกษาที่ระบุ' });
+      return;
+    }
+
+    periods = periods.map((p) => ({
+      ...p,
+      isCurrent: p.id === id,
+    }));
+
+    await prisma.siteSetting.upsert({
+      where: { key: 'academic_periods' },
+      update: { value: JSON.stringify(periods) },
+      create: { key: 'academic_periods', value: JSON.stringify(periods), description: 'รอบปีการศึกษาและภาคเรียนที่เปิดให้กรอกข้อมูล' },
+    });
+
+    res.json({
+      status: 'success',
+      message: `ตั้งรอบปีการศึกษา ${target.year} ภาคเรียนที่ ${target.semester} เป็นรอบปัจจุบันสำเร็จ`,
+      data: periods,
+    });
+  } catch (error: any) {
+    console.error('setCurrentAcademicPeriod error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถตั้งรอบปัจจุบันได้' });
+  }
+}
+
+
 

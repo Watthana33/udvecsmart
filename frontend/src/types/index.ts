@@ -138,6 +138,14 @@ export interface SiteSettings {
   current_semester?: number;
 }
 
+export interface AcademicPeriodItem {
+  id: string;
+  year: number;
+  semester: number;
+  isCurrent: boolean;
+}
+
+
 export interface UserProfile {
   id: string;
   email: string;

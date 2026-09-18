@@ -222,4 +222,30 @@ export async function deleteUser(id: string): Promise<any> {
   return res.data;
 }
 
+// Academic Periods Management (รอบปีการศึกษาและภาคเรียน)
+export async function getAcademicPeriods(): Promise<any[]> {
+  const res = await api.get('/settings/academic-periods');
+  return res.data.data;
+}
+
+export async function createAcademicPeriod(data: {
+  year: number;
+  semester: number;
+  isCurrent?: boolean;
+}): Promise<any> {
+  const res = await api.post('/settings/academic-periods', data);
+  return res.data;
+}
+
+export async function deleteAcademicPeriod(id: string): Promise<any> {
+  const res = await api.delete(`/settings/academic-periods/${id}`);
+  return res.data;
+}
+
+export async function setCurrentAcademicPeriod(id: string): Promise<any> {
+  const res = await api.put(`/settings/academic-periods/${id}/current`);
+  return res.data;
+}
+
+
 

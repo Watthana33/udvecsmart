@@ -73,17 +73,45 @@ model Personnel {
 
 model SchoolStat {
   id                     String      @id @default(uuid())
-  academicYear           Int         // ปีการศึกษา (พ.ศ.) เช่น 2567
+  academicYear           Int         // ปีการศึกษา (พ.ศ.) เช่น 2567, 2568
   semester               Int         @default(1) // ภาคเรียนที่ 1 หรือ 2
-  vocCertCount           Int         @default(0) // จำนวนนักเรียนระดับ ปวช.
-  highVocCertCount       Int         @default(0) // จำนวนนักศึกษาระดับ ปวส.
-  bachelorCount          Int         @default(0) // จำนวนนักศึกษาระดับ ปริญญาตรี (ทล.บ.)
-  totalStudents          Int         @default(0) // จำนวนนักเรียน/นักศึกษา รวม
+
+  // ข้อมูลสถิตินักเรียนจำแนกเพศ
+  maleStudents           Int         @default(0) // นักเรียนชาย
+  femaleStudents         Int         @default(0) // นักเรียนหญิง
+
+  // ข้อมูลสถิตินักเรียนจำแนกชั้นปี
+  vocCert1               Int         @default(0) // ปวช.1
+  vocCert2               Int         @default(0) // ปวช.2
+  vocCert3               Int         @default(0) // ปวช.3
+  highVocCert1           Int         @default(0) // ปวส.1
+  highVocCert2           Int         @default(0) // ปวส.2
+  bachelorCount          Int         @default(0) // ปริญญาตรี (ทล.บ.)
+  
+  // สรุปรวม
+  vocCertCount           Int         @default(0) // รวม ปวช.
+  highVocCertCount       Int         @default(0) // รวม ปวส.
+  totalStudents          Int         @default(0) // รวมนักเรียน/นักศึกษาทั้งหมด
   totalTeachers          Int         @default(0) // จำนวนครูผู้สอน
   totalStaff             Int         @default(0) // จำนวนบุคลากรทางการศึกษา
-  employedGraduatesCount Int         @default(0) // บัณฑิตที่มีงานทำ
+
+  // ข้อมูลผู้สำเร็จการศึกษา
+  gradVocCertCount       Int         @default(0) // ปวช. สำเร็จการศึกษา
+  gradHighVocCertCount   Int         @default(0) // ปวส. สำเร็จการศึกษา
+  employedGraduatesCount Int         @default(0) // บัณฑิตที่มีงานทำรวม
   furtherStudyCount      Int         @default(0) // ศึกษาต่อ
-  unemployedCount        Int         @default(0) // ยังไม่มีงานทำ/ว่างงาน
+  unemployedCount        Int         @default(0) // ว่างงาน / ยังไม่มีงานทำ
+
+  // จำแนกประเภทการมีงานทำ
+  employedInField        Int         @default(0) // ทำงานตรงสาขาวิชาชีพ
+  employedOutField       Int         @default(0) // ทำงานไม่ตรงสาขาวิชาชีพ
+  employedFreelance      Int         @default(0) // ประกอบอาชีพอิสระ
+
+  // จำแนกหน่วยงานที่เข้าทำงาน
+  workGov                Int         @default(0) // หน่วยงานของรัฐ
+  workPrivate            Int         @default(0) // หน่วยงานเอกชน
+  workSelf               Int         @default(0) // ประกอบอาชีพอิสระ / ธุรกิจส่วนตัว
+
   institutionId          String
   institution            Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   createdAt              DateTime    @default(now())
@@ -111,10 +139,23 @@ model News {
 
 model SiteSetting {
   id          String   @id @default(uuid())
-  key         String   @unique // เช่น is_data_submission_open, announcement_banner
-  value       String   @db.Text // เก็บข้อความ หรือ JSON string
-  description String?  // คำอธิบายการตั้งค่า
+  key         String   @unique // เช่น is_data_submission_open, system_title
+  value       String   @db.Text
+  description String?
   updatedAt   DateTime @updatedAt
 
   @@map("site_settings")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String   // ชื่อ-นามสกุล ผู้ติดต่อ
+  email     String   // อีเมล
+  phone     String?  // เบอร์โทรศัพท์
+  subject   String   // เรื่องที่ติดต่อ
+  message   String   @db.Text // ข้อความ
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
 }

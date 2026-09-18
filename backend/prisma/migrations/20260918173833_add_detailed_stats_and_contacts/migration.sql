@@ -1,0 +1,30 @@
+-- AlterTable
+ALTER TABLE "school_stats" ADD COLUMN     "employedFreelance" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "employedInField" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "employedOutField" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "femaleStudents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "gradHighVocCertCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "gradVocCertCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "highVocCert1" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "highVocCert2" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "maleStudents" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "vocCert1" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "vocCert2" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "vocCert3" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "workGov" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "workPrivate" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "workSelf" INTEGER NOT NULL DEFAULT 0;
+
+-- CreateTable
+CREATE TABLE "contact_messages" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "phone" TEXT,
+    "subject" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "isRead" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "contact_messages_pkey" PRIMARY KEY ("id")
+);

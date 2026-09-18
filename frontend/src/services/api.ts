@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { StatsOverview, Institution, NewsItem, SiteSettings, UserProfile } from '../types';
+import { StatsOverview, Institution, NewsItem, SiteSettings, UserProfile, InstitutionStatItem, ContactFormInput } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -10,7 +10,6 @@ export const api = axios.create({
   },
 });
 
-// ดักจับ Request เพื่อแนบ JWT Token จาก localStorage (ถ้ามี)
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('udpvecsmart_token');
   if (token) {
@@ -19,18 +18,33 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// API Functions
 export async function getSettings(): Promise<SiteSettings> {
   const res = await api.get('/settings/public');
   return res.data.data;
 }
 
-export async function getStatsOverview(academicYear?: number, semester?: number): Promise<StatsOverview> {
+export async function getStatsOverview(
+  academicYear?: number,
+  semester?: number,
+  institutionId?: string
+): Promise<StatsOverview> {
   const params: any = {};
   if (academicYear) params.academicYear = academicYear;
   if (semester) params.semester = semester;
+  if (institutionId && institutionId !== 'ALL') params.institutionId = institutionId;
   const res = await api.get('/stats/overview', { params });
   return res.data.data;
+}
+
+export async function getStatsByInstitution(
+  academicYear?: number,
+  semester?: number
+): Promise<{ total: number; data: InstitutionStatItem[] }> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  const res = await api.get('/stats/by-institution', { params });
+  return res.data;
 }
 
 export async function getInstitutions(params?: { search?: string; type?: string }): Promise<{ total: number; data: Institution[] }> {
@@ -44,6 +58,11 @@ export async function getNewsList(params?: { category?: string; limit?: number; 
     total: res.data.pagination.total,
     data: res.data.data,
   };
+}
+
+export async function submitContact(data: ContactFormInput): Promise<{ status: string; message: string }> {
+  const res = await api.post('/contact', data);
+  return res.data;
 }
 
 export async function login(email: string, password: string): Promise<{ accessToken: string; user: UserProfile }> {

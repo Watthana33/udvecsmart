@@ -7,6 +7,7 @@ import institutionRoutes from './routes/institution.routes.js';
 import statRoutes from './routes/stat.routes.js';
 import newsRoutes from './routes/news.routes.js';
 import settingRoutes from './routes/setting.routes.js';
+import contactRoutes from './routes/contact.routes.js';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/institutions', institutionRoutes);
 app.use('/api/stats', statRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Healthcheck & Database connection test
 app.get('/api/health', async (_req: Request, res: Response) => {

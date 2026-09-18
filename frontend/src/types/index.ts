@@ -2,6 +2,14 @@ export type Role = 'SUPER_ADMIN' | 'SCHOOL_ADMIN';
 export type InstitutionType = 'PUBLIC' | 'PRIVATE';
 export type NewsCategory = 'ANNOUNCEMENT' | 'BANNER_SLIDE' | 'ACTIVITY';
 
+export interface Personnel {
+  id: string;
+  name: string;
+  position: string;
+  order: number;
+  photoUrl?: string | null;
+}
+
 export interface Institution {
   id: string;
   code: string;
@@ -12,6 +20,7 @@ export interface Institution {
   phone: string | null;
   address: string | null;
   province: string;
+  personnels?: Personnel[];
   _count?: {
     personnels: number;
     schoolStats: number;
@@ -21,17 +30,47 @@ export interface Institution {
 export interface StatsOverview {
   academicYear: number;
   semester: number;
+  selectedInstitutionId?: string;
   reportingSchoolsCount: number;
   institutions: {
     total: number;
     public: number;
     private: number;
   };
+  executivesCount: number;
   students: {
+    male: number;
+    female: number;
     vocCert: number;
     highVocCert: number;
     bachelor: number;
     total: number;
+    byGrade: {
+      vocCert1: number;
+      vocCert2: number;
+      vocCert3: number;
+      highVocCert1: number;
+      highVocCert2: number;
+      bachelor: number;
+    };
+  };
+  bySectorGrades: {
+    public: {
+      vocCert1: number;
+      vocCert2: number;
+      vocCert3: number;
+      highVocCert1: number;
+      highVocCert2: number;
+      bachelor: number;
+    };
+    private: {
+      vocCert1: number;
+      vocCert2: number;
+      vocCert3: number;
+      highVocCert1: number;
+      highVocCert2: number;
+      bachelor: number;
+    };
   };
   personnel: {
     teachers: number;
@@ -39,10 +78,42 @@ export interface StatsOverview {
     total: number;
   };
   graduatesEmployment: {
+    gradVocCert: number;
+    gradHighVocCert: number;
+    totalGraduates: number;
     employed: number;
     furtherStudy: number;
     unemployed: number;
-    totalReported: number;
+    byJobType: {
+      inField: number;
+      outField: number;
+      freelance: number;
+      unemployed: number;
+    };
+    byWorkplace: {
+      government: number;
+      private: number;
+      selfEmployed: number;
+    };
+  };
+}
+
+export interface InstitutionStatItem {
+  id: string;
+  academicYear: number;
+  semester: number;
+  maleStudents: number;
+  femaleStudents: number;
+  totalStudents: number;
+  totalTeachers: number;
+  employedGraduatesCount: number;
+  unemployedCount: number;
+  institution: {
+    id: string;
+    code: string;
+    name: string;
+    type: InstitutionType;
+    logoUrl: string | null;
   };
 }
 
@@ -78,4 +149,12 @@ export interface UserProfile {
     type: InstitutionType;
     logoUrl: string | null;
   } | null;
+}
+
+export interface ContactFormInput {
+  name: string;
+  email: string;
+  phone?: string;
+  subject: string;
+  message: string;
 }

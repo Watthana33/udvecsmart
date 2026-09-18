@@ -1,21 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { BannerSection } from './components/dashboard/BannerSection';
-import { StatCards } from './components/dashboard/StatCards';
-import { InstitutionList } from './components/dashboard/InstitutionList';
 import { NewsSection } from './components/dashboard/NewsSection';
+import { StatCards } from './components/dashboard/StatCards';
+import { OverviewCharts } from './components/dashboard/OverviewCharts';
+import { InstitutionList } from './components/dashboard/InstitutionList';
+import { EmploymentSection } from './components/dashboard/EmploymentSection';
+import { ContactSection } from './components/dashboard/ContactSection';
 import { LoginModal } from './components/auth/LoginModal';
-import { getSettings, getStatsOverview, getInstitutions, getNewsList, getMe } from './services/api';
-import { StatsOverview, Institution, NewsItem, SiteSettings, UserProfile } from './types';
+import {
+  getStatsOverview,
+  getStatsByInstitution,
+  getInstitutions,
+  getNewsList,
+  getMe,
+} from './services/api';
+import {
+  StatsOverview,
+  Institution,
+  NewsItem,
+  UserProfile,
+  InstitutionStatItem,
+} from './types';
 
 export function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('overview');
 
-  // Dashboard Data State
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  // Filter State (Reactive Filters)
+  const [selectedYear, setSelectedYear] = useState<number>(2568);
+  const [selectedSemester, setSelectedSemester] = useState<number>(1);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('ALL');
+
+  // Data States
   const [stats, setStats] = useState<StatsOverview | null>(null);
+  const [institutionStats, setInstitutionStats] = useState<InstitutionStatItem[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
 
@@ -24,76 +45,125 @@ export function App() {
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
 
-  // ตรวจสอบสถานะการเข้าสู่ระบบจาก Token ใน localStorage
+  // Check login token
   useEffect(() => {
     const token = localStorage.getItem('udpvecsmart_token');
     if (token) {
       getMe()
         .then((profile) => setUser(profile))
         .catch(() => {
-          // Token หมดอายุหรือไม่ถูกต้อง
           localStorage.removeItem('udpvecsmart_token');
           setUser(null);
         });
     }
   }, []);
 
-  // ดึงข้อมูลภาพรวมสำหรับหน้าสาธารณะ (Public Dashboard)
+  // Fetch Institutions & News on initial load
   useEffect(() => {
-    // 1. ดึง Settings
-    getSettings()
-      .then((data) => setSettings(data))
-      .catch((err) => console.error('Failed to load settings:', err));
-
-    // 2. ดึง Stats Overview
-    getStatsOverview()
-      .then((data) => setStats(data))
-      .catch((err) => console.error('Failed to load stats:', err))
-      .finally(() => setLoadingStats(false));
-
-    // 3. ดึงรายชื่อสถานศึกษา
     getInstitutions()
       .then((res) => setInstitutions(res.data))
       .catch((err) => console.error('Failed to load institutions:', err))
       .finally(() => setLoadingInstitutions(false));
 
-    // 4. ดึงข่าวสาร
-    getNewsList({ limit: 6 })
+    getNewsList({ limit: 10 })
       .then((res) => setNewsList(res.data))
       .catch((err) => console.error('Failed to load news:', err))
       .finally(() => setLoadingNews(false));
   }, []);
+
+  // Fetch Stats dynamically whenever filters change (Year, Semester, or Selected Institution)
+  const loadStats = useCallback(() => {
+    setLoadingStats(true);
+    Promise.all([
+      getStatsOverview(selectedYear, selectedSemester, selectedInstitutionId),
+      getStatsByInstitution(selectedYear, selectedSemester),
+    ])
+      .then(([overviewData, instStatsData]) => {
+        setStats(overviewData);
+        setInstitutionStats(instStatsData.data);
+      })
+      .catch((err) => console.error('Failed to load statistics:', err))
+      .finally(() => setLoadingStats(false));
+  }, [selectedYear, selectedSemester, selectedInstitutionId]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   const handleLogout = () => {
     localStorage.removeItem('udpvecsmart_token');
     setUser(null);
   };
 
+  const handleSelectInstitution = (id: string) => {
+    setSelectedInstitutionId(id);
+    setActiveTab('overview');
+    window.scrollTo({ top: 400, behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* 1. Header & Navigation */}
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
+      {/* 1. Header with #932d16 theme and Tab Navigation */}
       <Navbar
         user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
       />
 
       {/* 2. Main Content */}
       <main className="flex-grow">
-        {/* Banner / Hero Section */}
-        <BannerSection settings={settings} />
+        {/* Banner Section with Full-Width Banner & Reactive Filter Dropdowns */}
+        <BannerSection
+          institutions={institutions}
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          selectedSemester={selectedSemester}
+          setSelectedSemester={setSelectedSemester}
+          selectedInstitutionId={selectedInstitutionId}
+          setSelectedInstitutionId={setSelectedInstitutionId}
+        />
 
-        {/* Real-time Statistics Cards */}
-        <StatCards stats={stats} loading={loadingStats} />
-
-        {/* Colleges Directory (Search & Filter) */}
-        <InstitutionList institutions={institutions} loading={loadingInstitutions} />
-
-        {/* News & Activity Section */}
+        {/* News Section (Slide/Carousel) */}
         <NewsSection newsList={newsList} loading={loadingNews} />
+
+        {/* Tab 1: ภาพรวมสถิติ (Overview Dashboard) */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <StatCards stats={stats} loading={loadingStats} />
+            <OverviewCharts
+              stats={stats}
+              institutionStats={institutionStats}
+              loading={loadingStats}
+            />
+          </div>
+        )}
+
+        {/* Tab 2: สถานศึกษาในสังกัด (Affiliated Institutions Directory - 29 Colleges) */}
+        {activeTab === 'institutions' && (
+          <InstitutionList
+            institutions={institutions}
+            loading={loadingInstitutions}
+            selectedInstitutionId={selectedInstitutionId}
+            onSelectInstitution={handleSelectInstitution}
+          />
+        )}
+
+        {/* Tab 3: ข้อมูลผู้สำเร็จการศึกษาและภาวะการมีงานทำ */}
+        {activeTab === 'employment' && (
+          <EmploymentSection
+            stats={stats}
+            institutionStats={institutionStats}
+            loading={loadingStats}
+          />
+        )}
+
+        {/* Tab 4: ติดต่อเรา (Contact Us & Form) */}
+        {activeTab === 'contact' && <ContactSection />}
       </main>
 
-      {/* 3. Footer */}
+      {/* 3. Footer with #932d16 theme */}
       <Footer />
 
       {/* 4. Login Modal */}

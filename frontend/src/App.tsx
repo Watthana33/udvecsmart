@@ -99,8 +99,12 @@ export function App() {
   const handleSelectInstitution = (id: string) => {
     setSelectedInstitutionId(id);
     setActiveTab('overview');
-    window.scrollTo({ top: 400, behavior: 'smooth' });
+    setTimeout(() => {
+      document.getElementById('main-tab-content')?.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
   };
+
+  const isAdmin = !!user && (user.role === 'SUPER_ADMIN' || user.role === 'SCHOOL_ADMIN');
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
@@ -115,8 +119,11 @@ export function App() {
 
       {/* 2. Main Content */}
       <main className="flex-grow">
-        {/* Full-width Hero Banner with Auto-Fit & Admin Changer */}
-        <BannerSection />
+        {/* Full-width Hero Banner with Auto-Fit & Admin Changer (Only for logged-in Admins) */}
+        <BannerSection isAdmin={isAdmin} />
+
+        {/* Anchor point for automatic smooth scrolling to tab content */}
+        <div id="main-tab-content" className="scroll-mt-24" />
 
         {/* Tab 1: ภาพรวมสถิติ (Overview Dashboard) */}
         {activeTab === 'overview' && (

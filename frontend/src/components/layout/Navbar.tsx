@@ -19,10 +19,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const navItems = [
     { id: 'overview', label: 'ภาพรวม', icon: BarChart3 },
-    { id: 'institutions', label: 'สถานศึกษาในสังกัด', icon: School },
     { id: 'employment', label: 'ภาวะการมีงานทำ', icon: Briefcase },
+    { id: 'institutions', label: 'สถานศึกษาในสังกัด', icon: School },
     { id: 'contact', label: 'ติดต่อเรา', icon: Mail },
   ];
+
+  // เมื่อคลิกที่แท็บใดก็ตาม ให้ระบบเลื่อนไปที่ตำแหน่งข้อมูลนั้นๆ อัตโนมัติ
+  const handleTabSelect = (tabId: string) => {
+    setActiveTab(tabId);
+    setTimeout(() => {
+      const element = document.getElementById('main-tab-content');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 380, behavior: 'smooth' });
+      }
+    }, 60);
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-[#932d16] text-white shadow-md border-b border-[#742210]">
@@ -31,7 +44,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Brand Logo & Name */}
           <div 
-            onClick={() => setActiveTab('overview')}
+            onClick={() => {
+              setActiveTab('overview');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className="flex items-center gap-3.5 cursor-pointer select-none"
           >
             <img 
@@ -65,8 +81,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 ${
+                  onClick={() => handleTabSelect(item.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
                     isActive
                       ? 'bg-white text-[#932d16] font-bold shadow-md'
                       : 'text-white/90 hover:bg-white/10 hover:text-white'
@@ -130,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleTabSelect(item.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap transition-all ${
                   isActive
                     ? 'bg-white text-[#932d16] font-bold shadow'

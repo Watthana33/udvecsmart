@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Upload, RefreshCw, X, Sparkles, Check } from 'lucide-react';
 
-export const BannerSection: React.FC = () => {
+interface BannerSectionProps {
+  isAdmin?: boolean;
+}
+
+export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false }) => {
   // Banner State & Persistence (Default to official /banner.png)
   const [bannerUrl, setBannerUrl] = useState<string>(() => {
     return localStorage.getItem('udpvecsmart_banner_image') || '/banner.png';
@@ -72,24 +76,26 @@ export const BannerSection: React.FC = () => {
           }}
         />
 
-        {/* Admin Change Banner Quick Button */}
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-6 opacity-85 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => {
-              setPreviewUrl(bannerUrl);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-[#932d16] text-white text-xs font-semibold rounded-lg backdrop-blur-md border border-white/20 shadow-lg transition-all active:scale-95 cursor-pointer"
-            title="เปลี่ยนภาพแบนเนอร์และทดสอบ Auto-Fit"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>เปลี่ยนแบนเนอร์ (Admin)</span>
-          </button>
-        </div>
+        {/* Admin Change Banner Quick Button (Only for logged-in Admins) */}
+        {isAdmin && (
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-6 opacity-85 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => {
+                setPreviewUrl(bannerUrl);
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-[#932d16] text-white text-xs font-semibold rounded-lg backdrop-blur-md border border-white/20 shadow-lg transition-all active:scale-95 cursor-pointer"
+              title="เปลี่ยนภาพแบนเนอร์และทดสอบ Auto-Fit"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>เปลี่ยนแบนเนอร์ (Admin)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. Modal: จัดการแบนเนอร์ (Admin Banner Manager & Auto-Fit Preview) */}
-      {isModalOpen && (
+      {isAdmin && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-6 sm:p-8 space-y-6 border border-slate-100 my-8">
             {/* Header */}

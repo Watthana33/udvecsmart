@@ -37,6 +37,16 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         phone: true,
         address: true,
         province: true,
+        personnels: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            photoUrl: true,
+            order: true,
+          },
+          orderBy: { order: 'asc' },
+        },
         _count: {
           select: {
             personnels: true,

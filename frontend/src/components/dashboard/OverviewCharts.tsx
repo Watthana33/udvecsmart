@@ -63,7 +63,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
           pubGrades.highVocCert2,
           pubGrades.bachelor,
         ],
-        backgroundColor: '#932d16',
+        backgroundColor: '#7c3aed',
         borderRadius: 6,
       },
       {
@@ -76,7 +76,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
           privGrades.highVocCert2,
           privGrades.bachelor,
         ],
-        backgroundColor: '#f59e0b',
+        backgroundColor: '#0284c7',
         borderRadius: 6,
       },
     ],
@@ -138,16 +138,16 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               จำนวนนักเรียน นักศึกษา แยกตามระดับชั้นปี (ปวช.1 - ปวส.2 - ป.ตรี)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีแดงเลือดหมู) และสถานศึกษาภาคเอกชน (สีเหลืองอำพัน)
+              เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีม่วง) และสถานศึกษาภาคเอกชน (สีฟ้า) ตามหลัก Square Color Harmony
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-semibold">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-[#932d16]" />
+              <span className="w-3 h-3 rounded-full bg-[#7c3aed]" />
               <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-[#f59e0b]" />
+              <span className="w-3 h-3 rounded-full bg-[#0284c7]" />
               <span>เอกชน ({stats.institutions.private} แห่ง)</span>
             </span>
           </div>

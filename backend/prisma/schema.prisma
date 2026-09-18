@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN   // ผู้ดูแลระบบส่วนกลาง (สอจ.อุดรธานี)
+  SCHOOL_ADMIN  // ผู้ดูแลระบบประจำสถานศึกษา
+}
+
+enum InstitutionType {
+  PUBLIC   // สถานศึกษาภาครัฐ
+  PRIVATE  // สถานศึกษาภาคเอกชน
+}
+
+enum NewsCategory {
+  ANNOUNCEMENT  // ข่าวประชาสัมพันธ์ทั่วไป
+  BANNER_SLIDE  // แบนเนอร์สไลด์หน้าแรก
+  ACTIVITY      // ข่าวกิจกรรม / ผลงาน
+}
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  passwordHash  String
+  fullName      String
+  role          Role         @default(SCHOOL_ADMIN)
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  news          News[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("users")
+}
+
+model Institution {
+  id          String          @id @default(uuid())
+  code        String          @unique // รหัสสถานศึกษา 10 หลัก
+  name        String          // ชื่อสถานศึกษา
+  type        InstitutionType @default(PUBLIC)
+  logoUrl     String?
+  website     String?
+  phone       String?
+  address     String?
+  province    String          @default("อุดรธานี")
+  users       User[]
+  personnels  Personnel[]
+  schoolStats SchoolStat[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("institutions")
+}
+
+model Personnel {
+  id            String      @id @default(uuid())
+  name          String      // ชื่อ-นามสกุล ผู้บริหาร
+  position      String      // ตำแหน่ง เช่น ผู้อำนวยการ, รองผู้อำนวยการ
+  order         Int         @default(0) // ลำดับสำหรับจัดเรียงแสดงผล
+  photoUrl      String?
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("personnels")
+}
+
+model SchoolStat {
+  id                     String      @id @default(uuid())
+  academicYear           Int         // ปีการศึกษา (พ.ศ.) เช่น 2567
+  semester               Int         @default(1) // ภาคเรียนที่ 1 หรือ 2
+  vocCertCount           Int         @default(0) // จำนวนนักเรียนระดับ ปวช.
+  highVocCertCount       Int         @default(0) // จำนวนนักศึกษาระดับ ปวส.
+  bachelorCount          Int         @default(0) // จำนวนนักศึกษาระดับ ปริญญาตรี (ทล.บ.)
+  totalStudents          Int         @default(0) // จำนวนนักเรียน/นักศึกษา รวม
+  totalTeachers          Int         @default(0) // จำนวนครูผู้สอน
+  totalStaff             Int         @default(0) // จำนวนบุคลากรทางการศึกษา
+  employedGraduatesCount Int         @default(0) // บัณฑิตที่มีงานทำ
+  furtherStudyCount      Int         @default(0) // ศึกษาต่อ
+  unemployedCount        Int         @default(0) // ยังไม่มีงานทำ/ว่างงาน
+  institutionId          String
+  institution            Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  @@unique([institutionId, academicYear, semester])
+  @@map("school_stats")
+}
+
+model News {
+  id            String       @id @default(uuid())
+  title         String
+  content       String       @db.Text
+  coverImageUrl String?
+  category      NewsCategory @default(ANNOUNCEMENT)
+  isPublished   Boolean      @default(true)
+  viewCount     Int          @default(0)
+  authorId      String?
+  author        User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("news")
+}
+
+model SiteSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique // เช่น is_data_submission_open, announcement_banner
+  value       String   @db.Text // เก็บข้อความ หรือ JSON string
+  description String?  // คำอธิบายการตั้งค่า
+  updatedAt   DateTime @updatedAt
+
+  @@map("site_settings")
+}

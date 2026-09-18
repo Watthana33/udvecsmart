@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { ENV } from './config/env.js';
 import { prisma } from './config/prisma.js';
+import authRoutes from './routes/auth.routes.js';
 
 const app = express();
 
@@ -14,6 +15,9 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// API Routes
+app.use('/api/auth', authRoutes);
 
 // Healthcheck & Database connection test
 app.get('/api/health', async (_req: Request, res: Response) => {

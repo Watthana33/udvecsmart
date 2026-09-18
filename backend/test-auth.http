@@ -1,0 +1,35 @@
+### 1. ทดสอบ Healthcheck & Database Connection
+GET http://localhost:5000/api/health
+
+### 2. ทดสอบ Login ด้วยบัญชี Super Admin (สอจ.อุดรธานี)
+# @name loginAdmin
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@udpvec.go.th",
+  "password": "Password@1234"
+}
+
+### 3. ทดสอบ Login ด้วยบัญชี School Admin (วท.อุดรธานี)
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin.udtech@udpvec.go.th",
+  "password": "Password@1234"
+}
+
+### 4. ทดสอบ Login ด้วยรหัสผ่านผิด (ต้องได้ 401 Unauthorized)
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@udpvec.go.th",
+  "password": "WrongPassword123!"
+}
+
+### 5. ทดสอบเรียกดู Profile ด้วย Token (/api/auth/me)
+# ก๊อปปี้ค่า accessToken จากข้อ 2 มาใส่แทน <YOUR_TOKEN_HERE>
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer <YOUR_TOKEN_HERE>

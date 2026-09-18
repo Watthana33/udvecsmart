@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { BannerSection } from './components/dashboard/BannerSection';
-import { NewsSection } from './components/dashboard/NewsSection';
+import { OverviewHero } from './components/dashboard/OverviewHero';
+import { FilterBar } from './components/dashboard/FilterBar';
 import { StatCards } from './components/dashboard/StatCards';
 import { OverviewCharts } from './components/dashboard/OverviewCharts';
 import { InstitutionList } from './components/dashboard/InstitutionList';
@@ -114,23 +115,28 @@ export function App() {
 
       {/* 2. Main Content */}
       <main className="flex-grow">
-        {/* Banner Section with Full-Width Banner & Reactive Filter Dropdowns */}
-        <BannerSection
-          institutions={institutions}
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
-          selectedSemester={selectedSemester}
-          setSelectedSemester={setSelectedSemester}
-          selectedInstitutionId={selectedInstitutionId}
-          setSelectedInstitutionId={setSelectedInstitutionId}
-        />
-
-        {/* News Section (Slide/Carousel) */}
-        <NewsSection newsList={newsList} loading={loadingNews} />
+        {/* Full-width Hero Banner with Auto-Fit & Admin Changer */}
+        <BannerSection />
 
         {/* Tab 1: ภาพรวมสถิติ (Overview Dashboard) */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Headline & News side-by-side */}
+            <OverviewHero newsList={newsList} loading={loadingNews} />
+
+            {/* Horizontal Filter Bar across the page */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <FilterBar
+                institutions={institutions}
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
+                selectedSemester={selectedSemester}
+                setSelectedSemester={setSelectedSemester}
+                selectedInstitutionId={selectedInstitutionId}
+                setSelectedInstitutionId={setSelectedInstitutionId}
+              />
+            </div>
+
             <StatCards stats={stats} loading={loadingStats} />
             <OverviewCharts
               stats={stats}
@@ -150,13 +156,28 @@ export function App() {
           />
         )}
 
-        {/* Tab 3: ข้อมูลผู้สำเร็จการศึกษาและภาวะการมีงานทำ */}
+        {/* Tab 3: ข้อมูลผู้สำเร็จการศึกษาและภาวะการมีงานทำ (Graduates & Employment) */}
         {activeTab === 'employment' && (
-          <EmploymentSection
-            stats={stats}
-            institutionStats={institutionStats}
-            loading={loadingStats}
-          />
+          <div className="space-y-6">
+            {/* Horizontal Filter Bar also displayed in Employment tab as requested */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+              <FilterBar
+                institutions={institutions}
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
+                selectedSemester={selectedSemester}
+                setSelectedSemester={setSelectedSemester}
+                selectedInstitutionId={selectedInstitutionId}
+                setSelectedInstitutionId={setSelectedInstitutionId}
+              />
+            </div>
+
+            <EmploymentSection
+              stats={stats}
+              institutionStats={institutionStats}
+              loading={loadingStats}
+            />
+          </div>
         )}
 
         {/* Tab 4: ติดต่อเรา (Contact Us & Form) */}

@@ -36,19 +36,19 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
       {
         label: 'มีงานทำ (คน)',
         data: displayInstitutions.map((i) => i.employedGraduatesCount),
-        backgroundColor: '#10b981',
+        backgroundColor: '#0284c7',
         borderRadius: 4,
       },
       {
-        label: 'ว่างงาน (คน)',
+        label: 'ว่างงาน / กำลังหางาน (คน)',
         data: displayInstitutions.map((i) => i.unemployedCount),
-        backgroundColor: '#f43f5e',
+        backgroundColor: '#ea580c',
         borderRadius: 4,
       },
     ],
   };
 
-  // 2. Chart 2 Data: การมีงานทำแยกประเภท
+  // 2. Chart 2 Data: การมีงานทำแยกประเภท (4 สีตามระบบ Square Color Harmony)
   const jobTypeLabels = [
     'ทำงานตรงสาขาวิชาชีพ',
     'ทำงานไม่ตรงสาขาวิชาชีพ',
@@ -66,7 +66,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
           graduatesEmployment.byJobType.freelance,
           graduatesEmployment.byJobType.unemployed,
         ],
-        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e'],
+        backgroundColor: ['#7c3aed', '#0284c7', '#f59e0b', '#ea580c'],
         borderRadius: 8,
       },
     ],
@@ -95,7 +95,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
           graduatesEmployment.byWorkplace.private,
           graduatesEmployment.byWorkplace.selfEmployed,
         ],
-        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
+        backgroundColor: ['#7c3aed', '#0284c7', '#f59e0b'],
         borderWidth: 3,
         borderColor: '#ffffff',
       },
@@ -200,7 +200,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-600 mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0284c7] mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Employment Comparison by College</span>
             </div>
@@ -208,7 +208,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
               จำนวนยอดผู้สำเร็จการศึกษา มีงานทำ vs ว่างงาน (รายสถานศึกษา)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              เปรียบเทียบสัดส่วนระหว่างผู้มีงานทำ (สีเขียว) และผู้ที่ยังว่างงาน/กำลังหางาน (สีแดง)
+              เปรียบเทียบสัดส่วนระหว่างผู้มีงานทำ (สีฟ้า) และผู้ที่ยังว่างงาน/กำลังหางาน (สีส้มแดง) ตามหลัก Square Color Harmony
             </p>
           </div>
         </div>
@@ -326,17 +326,17 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[11px]">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-900 font-semibold">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-950 font-semibold border border-purple-100">
               <div>รัฐบาล</div>
-              <div className="text-xs font-bold text-blue-600 mt-0.5">{graduatesEmployment.byWorkplace.government.toLocaleString()}</div>
+              <div className="text-xs font-bold text-[#7c3aed] mt-0.5">{graduatesEmployment.byWorkplace.government.toLocaleString()}</div>
             </div>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-900 font-semibold">
+            <div className="p-2 rounded-xl bg-sky-50 text-sky-950 font-semibold border border-sky-100">
               <div>เอกชน</div>
-              <div className="text-xs font-bold text-emerald-600 mt-0.5">{graduatesEmployment.byWorkplace.private.toLocaleString()}</div>
+              <div className="text-xs font-bold text-[#0284c7] mt-0.5">{graduatesEmployment.byWorkplace.private.toLocaleString()}</div>
             </div>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-900 font-semibold">
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-950 font-semibold border border-amber-100">
               <div>อิสระ</div>
-              <div className="text-xs font-bold text-amber-600 mt-0.5">{graduatesEmployment.byWorkplace.selfEmployed.toLocaleString()}</div>
+              <div className="text-xs font-bold text-[#f59e0b] mt-0.5">{graduatesEmployment.byWorkplace.selfEmployed.toLocaleString()}</div>
             </div>
           </div>
         </div>

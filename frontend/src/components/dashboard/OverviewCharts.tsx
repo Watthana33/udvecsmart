@@ -91,13 +91,13 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
       {
         label: 'ชาย (คน)',
         data: displayInstitutions.map((i) => i.maleStudents),
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#0284c7',
         borderRadius: 4,
       },
       {
         label: 'หญิง (คน)',
         data: displayInstitutions.map((i) => i.femaleStudents),
-        backgroundColor: '#ec4899',
+        backgroundColor: '#7c3aed',
         borderRadius: 4,
       },
     ],
@@ -115,7 +115,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
     datasets: [
       {
         data: [totalMale, totalFemale],
-        backgroundColor: ['#3b82f6', '#ec4899'],
+        backgroundColor: ['#0284c7', '#7c3aed'],
         borderColor: ['#ffffff', '#ffffff'],
         borderWidth: 3,
         hoverOffset: 6,
@@ -189,7 +189,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 2: Horizontal Bar (ชาย-หญิง รายวิทยาลัย) */}
         <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0284c7] mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Gender Comparison by College</span>
             </div>
@@ -274,13 +274,13 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
           </div>
 
           <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-900 font-semibold">
+            <div className="p-2 rounded-xl bg-sky-50 text-sky-950 font-semibold border border-sky-100">
               <div>ชาย: {totalMale.toLocaleString()} คน</div>
-              <div className="text-[11px] text-blue-600 font-bold mt-0.5">{malePercent}%</div>
+              <div className="text-[11px] text-[#0284c7] font-bold mt-0.5">{malePercent}%</div>
             </div>
-            <div className="p-2 rounded-xl bg-pink-50 text-pink-900 font-semibold">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-950 font-semibold border border-purple-100">
               <div>หญิง: {totalFemale.toLocaleString()} คน</div>
-              <div className="text-[11px] text-pink-600 font-bold mt-0.5">{femalePercent}%</div>
+              <div className="text-[11px] text-[#7c3aed] font-bold mt-0.5">{femalePercent}%</div>
             </div>
           </div>
         </div>

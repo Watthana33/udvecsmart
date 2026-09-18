@@ -101,10 +101,11 @@ export async function getSubmissionStatuses(
   return res.data;
 }
 
-// School Admin: ดึงสถิติของวิทยาลัยตนเอง
+// ดึงสถิติของวิทยาลัย (School Admin ดึงของตนเอง, หรือ Super Admin ระบุ institutionId เพื่อดึงของวิทยาลัยใดๆ)
 export async function getMySchoolStat(
   academicYear?: number,
-  semester?: number
+  semester?: number,
+  institutionId?: string
 ): Promise<{
   isSubmissionOpen: boolean;
   institution: any;
@@ -115,6 +116,7 @@ export async function getMySchoolStat(
   const params: any = {};
   if (academicYear) params.academicYear = academicYear;
   if (semester) params.semester = semester;
+  if (institutionId) params.institutionId = institutionId;
   const res = await api.get('/stats/my-school', { params });
   return res.data;
 }

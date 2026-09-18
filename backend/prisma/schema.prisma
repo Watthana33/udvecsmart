@@ -93,6 +93,7 @@ model SchoolStat {
   vocCertCount           Int         @default(0) // รวม ปวช.
   highVocCertCount       Int         @default(0) // รวม ปวส.
   totalStudents          Int         @default(0) // รวมนักเรียน/นักศึกษาทั้งหมด
+  totalExecutives        Int         @default(1) // จำนวนผู้บริหาร
   totalTeachers          Int         @default(0) // จำนวนครูผู้สอน
   totalStaff             Int         @default(0) // จำนวนบุคลากรทางการศึกษา
 

@@ -13,6 +13,34 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import { StatsOverview, InstitutionStatItem } from '../../types';
 import { BarChart3, PieChart, TrendingUp, Users } from 'lucide-react';
 
+// Custom plugin to render exact numbers on top of chart bars when enabled
+const customDataLabelsPlugin = {
+  id: 'customDataLabels',
+  afterDatasetsDraw(chart: any, _args: any, pluginOptions: any) {
+    if (!pluginOptions?.showLabels) return;
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = 'bold 11px Sarabun, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    chart.data.datasets.forEach((dataset: any, datasetIndex: number) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+
+      meta.data.forEach((element: any, index: number) => {
+        const val = dataset.data[index];
+        if (val !== undefined && val !== null && val > 0) {
+          const formatted = Number(val).toLocaleString();
+          ctx.fillStyle = datasetIndex === 0 ? '#5b21b6' : '#0369a1';
+          ctx.fillText(formatted, element.x, element.y - 4);
+        }
+      });
+    });
+    ctx.restore();
+  },
+};
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -20,7 +48,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  customDataLabelsPlugin
 );
 
 interface OverviewChartsProps {
@@ -34,6 +63,8 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
   institutionStats,
   loading,
 }) => {
+  const [showGradeDataLabels, setShowGradeDataLabels] = React.useState<boolean>(false);
+
   if (loading || !stats) {
     return (
       <div className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -141,30 +172,46 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีม่วง) และสถานศึกษาภาคเอกชน (สีฟ้า) ตามหลัก Square Color Harmony
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-[#7c3aed]" />
-              <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-[#0284c7]" />
-              <span>เอกชน ({stats.institutions.private} แห่ง)</span>
-            </span>
+          <div className="flex items-center gap-3 sm:gap-4 text-xs font-semibold flex-wrap">
+            {/* Interactive Checkbox toggle to show/hide numbers directly on bars */}
+            <label className="flex items-center gap-2 cursor-pointer bg-slate-100 hover:bg-slate-200/80 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 transition-colors select-none border border-slate-200 shadow-2xs">
+              <input
+                type="checkbox"
+                checked={showGradeDataLabels}
+                onChange={(e) => setShowGradeDataLabels(e.target.checked)}
+                className="rounded text-[#932d16] focus:ring-[#932d16] w-4 h-4 cursor-pointer accent-[#932d16]"
+              />
+              <span>แสดงตัวเลขบนแท่งกราฟ</span>
+            </label>
+
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-[#7c3aed]" />
+                <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-[#0284c7]" />
+                <span>เอกชน ({stats.institutions.private} แห่ง)</span>
+              </span>
+            </div>
           </div>
         </div>
 
         <div className="h-80 w-full">
           <Bar
             data={gradeChartData}
-            options={{
+            options={({
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
+                customDataLabels: {
+                  showLabels: showGradeDataLabels,
+                },
                 legend: { position: 'top', labels: { font: { family: 'Sarabun', size: 12 } } },
                 tooltip: {
                   bodyFont: { family: 'Sarabun' },
                   callbacks: {
-                    label: (context) => `${context.dataset.label}: ${context.raw?.toLocaleString()} คน`,
+                    label: (context: any) => `${context.dataset.label}: ${context.raw?.toLocaleString()} คน`,
                   },
                 },
               },
@@ -174,11 +221,11 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
                   beginAtZero: true,
                   ticks: {
                     font: { family: 'Sarabun' },
-                    callback: (value) => `${Number(value).toLocaleString()} คน`,
+                    callback: (value: any) => `${Number(value).toLocaleString()} คน`,
                   },
                 },
               },
-            }}
+            } as any)}
           />
         </div>
       </div>

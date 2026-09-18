@@ -51,6 +51,7 @@ export async function getStatsOverview(req: Request, res: Response): Promise<voi
         vocCertCount: true,
         highVocCertCount: true,
         totalStudents: true,
+        totalExecutives: true,
         totalTeachers: true,
         totalStaff: true,
         gradVocCertCount: true,
@@ -130,7 +131,7 @@ export async function getStatsOverview(req: Request, res: Response): Promise<voi
           public: publicCount,
           private: privateCount,
         },
-        executivesCount: totalExecutives,
+        executivesCount: (sums.totalExecutives || 0) > 0 ? (sums.totalExecutives || 0) : totalExecutives,
         students: {
           male: sums.maleStudents || 0,
           female: sums.femaleStudents || 0,
@@ -256,11 +257,14 @@ export async function getStatsByInstitution(req: Request, res: Response): Promis
  */
 export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const institutionId = req.user?.institutionId;
+    const institutionId = (req.user?.role === Role.SUPER_ADMIN && req.query.institutionId)
+      ? String(req.query.institutionId)
+      : req.user?.institutionId;
+
     if (!institutionId) {
       res.status(400).json({
         status: 'error',
-        message: 'ผู้ใช้นี้ไม่ได้ผูกกับสถานศึกษาใด',
+        message: 'ผู้ใช้นี้ไม่ได้ผูกกับสถานศึกษาใด หรือไม่ได้ระบุ institutionId',
       });
       return;
     }
@@ -308,7 +312,7 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
 }
 
 /**
- * บันทึกหรืออัปเดตข้อมูลสถิติประจำสถานศึกษา (สำหรับ SCHOOL_ADMIN)
+ * บันทึกหรืออัปเดตข้อมูลสถิติประจำสถานศึกษา (สำหรับ SCHOOL_ADMIN หรือ SUPER_ADMIN แก้ไขให้วิทยาลัย)
  * POST /api/stats/submit
  */
 export async function submitSchoolStat(req: AuthRequest, res: Response): Promise<void> {
@@ -316,7 +320,7 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     const userRole = req.user?.role;
     const userInstitutionId = req.user?.institutionId;
 
-    // 1. ตรวจสอบสถานะเปิดรับข้อมูลจาก SiteSetting
+    // 1. ตรวจสอบสถานะเปิดรับข้อมูลจาก SiteSetting (เฉพาะ School Admin ที่ถูกบล็อกหากปิดระบบ)
     const submissionSetting = await prisma.siteSetting.findUnique({
       where: { key: 'is_data_submission_open' },
     });
@@ -358,6 +362,7 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     const vocCertCount = vocCert1 + vocCert2 + vocCert3;
     const highVocCertCount = highVocCert1 + highVocCert2;
 
+    const totalExecutives = Number(body.totalExecutives) || 1;
     const totalTeachers = Number(body.totalTeachers) || 0;
     const totalStaff = Number(body.totalStaff) || 0;
 
@@ -396,6 +401,7 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         vocCertCount,
         highVocCertCount,
         totalStudents,
+        totalExecutives,
         totalTeachers,
         totalStaff,
         gradVocCertCount,
@@ -425,6 +431,7 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         vocCertCount,
         highVocCertCount,
         totalStudents,
+        totalExecutives,
         totalTeachers,
         totalStaff,
         gradVocCertCount,
@@ -486,6 +493,7 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
           id: true,
           institutionId: true,
           totalStudents: true,
+          totalExecutives: true,
           maleStudents: true,
           femaleStudents: true,
           totalTeachers: true,
@@ -511,6 +519,7 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
         programsCount: inst.programsCount,
         isSubmitted: !!stat,
         totalStudents: stat?.totalStudents ?? 0,
+        totalExecutives: stat?.totalExecutives ?? 1,
         maleStudents: stat?.maleStudents ?? 0,
         femaleStudents: stat?.femaleStudents ?? 0,
         totalTeachers: stat?.totalTeachers ?? 0,

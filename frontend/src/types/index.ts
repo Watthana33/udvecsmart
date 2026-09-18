@@ -169,6 +169,7 @@ export interface SubmissionStatusItem {
   programsCount: number;
   isSubmitted: boolean;
   totalStudents: number;
+  totalExecutives: number;
   maleStudents: number;
   femaleStudents: number;
   totalTeachers: number;
@@ -187,6 +188,7 @@ export interface SchoolStatFormData {
   highVocCert1: number;
   highVocCert2: number;
   bachelorCount: number;
+  totalExecutives: number;
   totalTeachers: number;
   totalStaff: number;
   gradVocCertCount: number;

@@ -3,6 +3,10 @@ import cors from 'cors';
 import { ENV } from './config/env.js';
 import { prisma } from './config/prisma.js';
 import authRoutes from './routes/auth.routes.js';
+import institutionRoutes from './routes/institution.routes.js';
+import statRoutes from './routes/stat.routes.js';
+import newsRoutes from './routes/news.routes.js';
+import settingRoutes from './routes/setting.routes.js';
 
 const app = express();
 
@@ -18,6 +22,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/institutions', institutionRoutes);
+app.use('/api/stats', statRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/settings', settingRoutes);
 
 // Healthcheck & Database connection test
 app.get('/api/health', async (_req: Request, res: Response) => {

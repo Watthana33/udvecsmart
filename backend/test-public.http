@@ -1,0 +1,33 @@
+### ==========================================
+### UDPVECSmart - Public API Testing
+### ==========================================
+
+### 1. ดึงการตั้งค่าระบบสำหรับหน้าสาธารณะ (Site Settings)
+GET http://localhost:5000/api/settings/public
+
+### 2. ดึงสถิติภาพรวมทั้งจังหวัดอุดรธานี (Overview Stats)
+GET http://localhost:5000/api/stats/overview
+
+### 3. ดึงสถิติแยกตามสถานศึกษา (สำหรับทำกราฟเปรียบเทียบ)
+GET http://localhost:5000/api/stats/by-institution?academicYear=2567&semester=1
+
+### 4. ดึงรายชื่อสถานศึกษาทั้งหมด (All Institutions)
+GET http://localhost:5000/api/institutions
+
+### 5. กรองสถานศึกษาเฉพาะ "ภาครัฐ" (PUBLIC)
+GET http://localhost:5000/api/institutions?type=PUBLIC
+
+### 6. กรองสถานศึกษาเฉพาะ "ภาคเอกชน" (PRIVATE)
+GET http://localhost:5000/api/institutions?type=PRIVATE
+
+### 7. ค้นหาสถานศึกษาด้วยคำค้นหา เช่น "เทคนิค"
+GET http://localhost:5000/api/institutions?search=เทคนิค
+
+### 8. ดึงข้อมูลวิทยาลัยรายแห่งด้วยรหัสสถานศึกษา (เช่น วท.อุดรธานี 13410101)
+GET http://localhost:5000/api/institutions/13410101
+
+### 9. ดึงรายการข่าวสารประชาสัมพันธ์ทั้งหมด (News List)
+GET http://localhost:5000/api/news
+
+### 10. ดึงข่าวสารเฉพาะหมวด "ANNOUNCEMENT"
+GET http://localhost:5000/api/news?category=ANNOUNCEMENT&limit=5&page=1

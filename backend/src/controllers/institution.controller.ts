@@ -37,6 +37,7 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         phone: true,
         address: true,
         province: true,
+        programsCount: true,
         personnels: {
           select: {
             id: true,

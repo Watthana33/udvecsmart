@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Institution, InstitutionType } from '../../types';
-import { Search, Phone, MapPin, ExternalLink, School, UserCheck, CheckCircle2, User } from 'lucide-react';
+import { Search, Phone, MapPin, ExternalLink, School, UserCheck, CheckCircle2, User, BookOpen } from 'lucide-react';
 
 interface InstitutionListProps {
   institutions: Institution[];
@@ -201,13 +201,22 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                       </div>
                     )}
 
-                    {/* Phone */}
-                    {inst.phone && (
-                      <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="font-semibold text-slate-700 text-xs">{inst.phone}</span>
+                    {/* Phone & Programs Count in the same row */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                      {inst.phone ? (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                          <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-semibold">{inst.phone}</span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+
+                      <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded-lg text-xs font-medium">
+                        <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>เปิดสอน <strong className="text-[#932d16] font-bold">{inst.programsCount || 12}</strong> สาขาวิชา</span>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 

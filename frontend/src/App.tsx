@@ -9,6 +9,7 @@ import { OverviewCharts } from './components/dashboard/OverviewCharts';
 import { InstitutionList } from './components/dashboard/InstitutionList';
 import { EmploymentSection } from './components/dashboard/EmploymentSection';
 import { ContactSection } from './components/dashboard/ContactSection';
+import { AdminPortal } from './components/portal/AdminPortal';
 import { LoginModal } from './components/auth/LoginModal';
 import {
   getStatsOverview,
@@ -94,6 +95,9 @@ export function App() {
   const handleLogout = () => {
     localStorage.removeItem('udpvecsmart_token');
     setUser(null);
+    if (activeTab === 'portal') {
+      setActiveTab('overview');
+    }
   };
 
   const handleSelectInstitution = (id: string) => {
@@ -104,7 +108,8 @@ export function App() {
     }, 60);
   };
 
-  const isAdmin = !!user && (user.role === 'SUPER_ADMIN' || user.role === 'SCHOOL_ADMIN');
+  // เฉพาะ Super Admin (สอจ.อุดรธานี) เท่านั้นที่มีสิทธิ์เปลี่ยนภาพแบนเนอร์
+  const isSuperAdmin = !!user && user.role === 'SUPER_ADMIN';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
@@ -119,8 +124,8 @@ export function App() {
 
       {/* 2. Main Content */}
       <main className="flex-grow">
-        {/* Full-width Hero Banner with Auto-Fit & Admin Changer (Only for logged-in Admins) */}
-        <BannerSection isAdmin={isAdmin} />
+        {/* Full-width Hero Banner with Auto-Fit & Super Admin Changer (Only for Super Admin) */}
+        <BannerSection isAdmin={isSuperAdmin} />
 
         {/* Anchor point for automatic smooth scrolling to tab content */}
         <div id="main-tab-content" className="scroll-mt-24" />
@@ -189,6 +194,11 @@ export function App() {
 
         {/* Tab 4: ติดต่อเรา (Contact Us & Form) */}
         {activeTab === 'contact' && <ContactSection />}
+
+        {/* Tab Portal: ระบบจัดการข้อมูล / ศูนย์ควบคุม สอจ. / บันทึกข้อมูลสถิติ */}
+        {activeTab === 'portal' && user && (
+          <AdminPortal user={user} onRefreshStats={loadStats} />
+        )}
       </main>
 
       {/* 3. Footer with #932d16 theme */}
@@ -198,7 +208,13 @@ export function App() {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={(loggedUser) => setUser(loggedUser)}
+        onLoginSuccess={(loggedUser) => {
+          setUser(loggedUser);
+          setActiveTab('portal');
+          setTimeout(() => {
+            document.getElementById('main-tab-content')?.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }}
       />
     </div>
   );

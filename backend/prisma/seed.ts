@@ -453,9 +453,24 @@ async function main() {
   ];
 
   // 3. Upsert วิทยาลัย, ผู้บริหาร, และ สถิติ
+  const programsMap: Record<string, number> = {
+    '13410101': 24, // วิทยาลัยเทคนิคอุดรธานี
+    '13410102': 18, // วิทยาลัยอาชีวศึกษาอุดรธานี
+    '13410103': 15, // วิทยาลัยสารพัดช่างอุดรธานี
+    '13410104': 12, // วิทยาลัยการอาชีพบ้านผือ
+    '13410105': 12, // วิทยาลัยการอาชีพกุมภวาปี
+    '13410106': 10, // วิทยาลัยการอาชีพหนองหาน
+    '13410107': 8,  // วิทยาลัยเกษตรและเทคโนโลยีอุดรธานี
+    '13410108': 10, // วิทยาลัยการอาชีพเพ็ญ
+    '13410109': 10, // วิทยาลัยการอาชีพกุดจับ
+    '13410110': 11, // วิทยาลัยเทคโนโลยีและอุตสาหกรรม
+  };
+
   let count = 0;
   for (const item of institutionsData) {
     count++;
+    const progCount = programsMap[item.code] || (item.type === InstitutionType.PUBLIC ? 10 : (8 + (count % 5)));
+
     const inst = await prisma.institution.upsert({
       where: { code: item.code },
       update: {
@@ -464,6 +479,7 @@ async function main() {
         website: item.website,
         phone: item.phone,
         address: item.address,
+        programsCount: progCount,
       },
       create: {
         code: item.code,
@@ -472,6 +488,7 @@ async function main() {
         website: item.website,
         phone: item.phone,
         address: item.address,
+        programsCount: progCount,
       },
     });
 

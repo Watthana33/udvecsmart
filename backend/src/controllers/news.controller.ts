@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { NewsCategory } from '@prisma/client';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+
 
 /**
  * ดึงรายการข่าวสาร/กิจกรรม/แบนเนอร์ สำหรับหน้าสาธารณะ
@@ -123,3 +125,77 @@ export async function getNewsById(req: Request, res: Response): Promise<void> {
     });
   }
 }
+
+/**
+ * สร้างข่าวสารใหม่ (เฉพาะ SUPER_ADMIN)
+ * POST /api/news
+ */
+export async function createNews(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { title, content, coverImageUrl, category } = req.body;
+    if (!title || !content) {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณากรอกหัวข้อข่าวและเนื้อหาข่าว',
+      });
+      return;
+    }
+
+    const news = await prisma.news.create({
+      data: {
+        title,
+        content,
+        coverImageUrl: coverImageUrl || null,
+        category: category && Object.values(NewsCategory).includes(category) ? category : NewsCategory.ANNOUNCEMENT,
+        isPublished: true,
+        authorId: req.user?.userId,
+      },
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'สร้างข่าวสารสำเร็จ',
+      data: news,
+    });
+  } catch (error: any) {
+    console.error('createNews error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถสร้างข่าวสารได้',
+      detail: error.message,
+    });
+  }
+}
+
+/**
+ * ลบข่าวสาร (เฉพาะ SUPER_ADMIN)
+ * DELETE /api/news/:id
+ */
+export async function deleteNews(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    await prisma.news.delete({
+      where: { id },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'ลบข่าวสารเรียบร้อยแล้ว',
+    });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข่าวสารที่ต้องการลบ',
+      });
+      return;
+    }
+    console.error('deleteNews error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบข่าวสารได้',
+      detail: error.message,
+    });
+  }
+}
+

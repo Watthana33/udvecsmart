@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
+import { Role } from '@prisma/client';
 
 /**
  * ดึงสถิติภาพรวม (หรือสถิติเฉพาะวิทยาลัยที่เลือก)
@@ -247,3 +249,295 @@ export async function getStatsByInstitution(req: Request, res: Response): Promis
     });
   }
 }
+
+/**
+ * ดึงข้อมูลสถิติของสถานศึกษาของผู้ใช้งานปัจจุบัน (สำหรับหน้ากรอกข้อมูล School Admin)
+ * GET /api/stats/my-school?academicYear=2568&semester=1
+ */
+export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const institutionId = req.user?.institutionId;
+    if (!institutionId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'ผู้ใช้นี้ไม่ได้ผูกกับสถานศึกษาใด',
+      });
+      return;
+    }
+
+    const academicYear = req.query.academicYear ? Number(req.query.academicYear) : 2568;
+    const semester = req.query.semester ? Number(req.query.semester) : 1;
+
+    const [stat, institution, submissionSetting] = await Promise.all([
+      prisma.schoolStat.findUnique({
+        where: {
+          institutionId_academicYear_semester: {
+            institutionId,
+            academicYear,
+            semester,
+          },
+        },
+      }),
+      prisma.institution.findUnique({
+        where: { id: institutionId },
+        select: { id: true, name: true, code: true, type: true, programsCount: true },
+      }),
+      prisma.siteSetting.findUnique({
+        where: { key: 'is_data_submission_open' },
+      }),
+    ]);
+
+    const isSubmissionOpen = submissionSetting ? submissionSetting.value === 'true' : true;
+
+    res.json({
+      status: 'success',
+      isSubmissionOpen,
+      institution,
+      academicYear,
+      semester,
+      data: stat,
+    });
+  } catch (error: any) {
+    console.error('getMySchoolStat error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลสถิติของสถานศึกษาได้',
+      detail: error.message,
+    });
+  }
+}
+
+/**
+ * บันทึกหรืออัปเดตข้อมูลสถิติประจำสถานศึกษา (สำหรับ SCHOOL_ADMIN)
+ * POST /api/stats/submit
+ */
+export async function submitSchoolStat(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userRole = req.user?.role;
+    const userInstitutionId = req.user?.institutionId;
+
+    // 1. ตรวจสอบสถานะเปิดรับข้อมูลจาก SiteSetting
+    const submissionSetting = await prisma.siteSetting.findUnique({
+      where: { key: 'is_data_submission_open' },
+    });
+    const isSubmissionOpen = submissionSetting ? submissionSetting.value === 'true' : true;
+
+    if (!isSubmissionOpen && userRole !== Role.SUPER_ADMIN) {
+      res.status(403).json({
+        status: 'error',
+        message: 'ขณะนี้ระบบปิดรับการรายงานข้อมูลสถิติ กรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี เพื่อเปิดระบบ',
+      });
+      return;
+    }
+
+    const body = req.body;
+    const targetInstitutionId = userRole === Role.SUPER_ADMIN ? (body.institutionId || userInstitutionId) : userInstitutionId;
+
+    if (!targetInstitutionId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'ไม่พบรหัสสถานศึกษาที่ต้องการบันทึกข้อมูล',
+      });
+      return;
+    }
+
+    const academicYear = Number(body.academicYear) || 2568;
+    const semester = Number(body.semester) || 1;
+
+    const maleStudents = Number(body.maleStudents) || 0;
+    const femaleStudents = Number(body.femaleStudents) || 0;
+    const totalStudents = maleStudents + femaleStudents;
+
+    const vocCert1 = Number(body.vocCert1) || 0;
+    const vocCert2 = Number(body.vocCert2) || 0;
+    const vocCert3 = Number(body.vocCert3) || 0;
+    const highVocCert1 = Number(body.highVocCert1) || 0;
+    const highVocCert2 = Number(body.highVocCert2) || 0;
+    const bachelorCount = Number(body.bachelorCount) || 0;
+
+    const vocCertCount = vocCert1 + vocCert2 + vocCert3;
+    const highVocCertCount = highVocCert1 + highVocCert2;
+
+    const totalTeachers = Number(body.totalTeachers) || 0;
+    const totalStaff = Number(body.totalStaff) || 0;
+
+    const gradVocCertCount = Number(body.gradVocCertCount) || 0;
+    const gradHighVocCertCount = Number(body.gradHighVocCertCount) || 0;
+
+    const employedInField = Number(body.employedInField) || 0;
+    const employedOutField = Number(body.employedOutField) || 0;
+    const employedFreelance = Number(body.employedFreelance) || 0;
+    const employedGraduatesCount = employedInField + employedOutField + employedFreelance;
+
+    const furtherStudyCount = Number(body.furtherStudyCount) || 0;
+    const unemployedCount = Number(body.unemployedCount) || 0;
+
+    const workGov = Number(body.workGov) || 0;
+    const workPrivate = Number(body.workPrivate) || 0;
+    const workSelf = Number(body.workSelf) || 0;
+
+    const stat = await prisma.schoolStat.upsert({
+      where: {
+        institutionId_academicYear_semester: {
+          institutionId: targetInstitutionId,
+          academicYear,
+          semester,
+        },
+      },
+      update: {
+        maleStudents,
+        femaleStudents,
+        vocCert1,
+        vocCert2,
+        vocCert3,
+        highVocCert1,
+        highVocCert2,
+        bachelorCount,
+        vocCertCount,
+        highVocCertCount,
+        totalStudents,
+        totalTeachers,
+        totalStaff,
+        gradVocCertCount,
+        gradHighVocCertCount,
+        employedGraduatesCount,
+        furtherStudyCount,
+        unemployedCount,
+        employedInField,
+        employedOutField,
+        employedFreelance,
+        workGov,
+        workPrivate,
+        workSelf,
+      },
+      create: {
+        institutionId: targetInstitutionId,
+        academicYear,
+        semester,
+        maleStudents,
+        femaleStudents,
+        vocCert1,
+        vocCert2,
+        vocCert3,
+        highVocCert1,
+        highVocCert2,
+        bachelorCount,
+        vocCertCount,
+        highVocCertCount,
+        totalStudents,
+        totalTeachers,
+        totalStaff,
+        gradVocCertCount,
+        gradHighVocCertCount,
+        employedGraduatesCount,
+        furtherStudyCount,
+        unemployedCount,
+        employedInField,
+        employedOutField,
+        employedFreelance,
+        workGov,
+        workPrivate,
+        workSelf,
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'บันทึกข้อมูลสถิติเรียบร้อยแล้ว',
+      data: stat,
+    });
+  } catch (error: any) {
+    console.error('submitSchoolStat error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกข้อมูลสถิติได้',
+      detail: error.message,
+    });
+  }
+}
+
+/**
+ * ดึงรายการสถานะการส่งข้อมูลของทุกสถานศึกษา (สำหรับหน้าจอ สอจ. Super Admin)
+ * GET /api/stats/submission-status?academicYear=2568&semester=1
+ */
+export async function getSubmissionStatusList(req: Request, res: Response): Promise<void> {
+  try {
+    const academicYear = req.query.academicYear ? Number(req.query.academicYear) : 2568;
+    const semester = req.query.semester ? Number(req.query.semester) : 1;
+
+    const [institutions, stats, submissionSetting] = await Promise.all([
+      prisma.institution.findMany({
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          phone: true,
+          programsCount: true,
+        },
+        orderBy: [{ type: 'asc' }, { code: 'asc' }],
+      }),
+      prisma.schoolStat.findMany({
+        where: {
+          academicYear,
+          semester,
+        },
+        select: {
+          id: true,
+          institutionId: true,
+          totalStudents: true,
+          maleStudents: true,
+          femaleStudents: true,
+          totalTeachers: true,
+          totalStaff: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.siteSetting.findUnique({
+        where: { key: 'is_data_submission_open' },
+      }),
+    ]);
+
+    const statMap = new Map(stats.map((s) => [s.institutionId, s]));
+
+    const statusList = institutions.map((inst) => {
+      const stat = statMap.get(inst.id);
+      return {
+        id: inst.id,
+        code: inst.code,
+        name: inst.name,
+        type: inst.type,
+        phone: inst.phone,
+        programsCount: inst.programsCount,
+        isSubmitted: !!stat,
+        totalStudents: stat?.totalStudents ?? 0,
+        maleStudents: stat?.maleStudents ?? 0,
+        femaleStudents: stat?.femaleStudents ?? 0,
+        totalTeachers: stat?.totalTeachers ?? 0,
+        totalStaff: stat?.totalStaff ?? 0,
+        updatedAt: stat?.updatedAt ?? null,
+      };
+    });
+
+    const submittedCount = statusList.filter((s) => s.isSubmitted).length;
+
+    res.json({
+      status: 'success',
+      academicYear,
+      semester,
+      isSubmissionOpen: submissionSetting ? submissionSetting.value === 'true' : true,
+      totalInstitutions: institutions.length,
+      submittedCount,
+      pendingCount: institutions.length - submittedCount,
+      data: statusList,
+    });
+  } catch (error: any) {
+    console.error('getSubmissionStatusList error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลสถานะการส่งข้อมูลได้',
+      detail: error.message,
+    });
+  }
+}
+

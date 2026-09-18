@@ -43,9 +43,9 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
                 <School className="w-3.5 h-3.5" />
                 <span>ศูนย์กลางข้อมูลสารสนเทศ</span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-normal">
                 ศูนย์รวมข้อมูลและสถิติ <br />
-                <span className="text-[#932d16]">อาชีวศึกษาจังหวัดอุดรธานี</span>
+                <span className="block mt-1.5 text-[#932d16]">อาชีวศึกษาจังหวัดอุดรธานี</span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                 แพลตฟอร์มสารสนเทศอัจฉริยะ ติดตามสถิตินักเรียนนักศึกษา บุคลากรครู 

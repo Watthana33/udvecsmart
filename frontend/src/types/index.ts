@@ -20,6 +20,7 @@ export interface Institution {
   phone: string | null;
   address: string | null;
   province: string;
+  programsCount?: number;
   personnels?: Personnel[];
   _count?: {
     personnels: number;
@@ -158,3 +159,45 @@ export interface ContactFormInput {
   subject: string;
   message: string;
 }
+
+export interface SubmissionStatusItem {
+  id: string;
+  code: string;
+  name: string;
+  type: InstitutionType;
+  phone: string | null;
+  programsCount: number;
+  isSubmitted: boolean;
+  totalStudents: number;
+  maleStudents: number;
+  femaleStudents: number;
+  totalTeachers: number;
+  totalStaff: number;
+  updatedAt: string | null;
+}
+
+export interface SchoolStatFormData {
+  academicYear: number;
+  semester: number;
+  maleStudents: number;
+  femaleStudents: number;
+  vocCert1: number;
+  vocCert2: number;
+  vocCert3: number;
+  highVocCert1: number;
+  highVocCert2: number;
+  bachelorCount: number;
+  totalTeachers: number;
+  totalStaff: number;
+  gradVocCertCount: number;
+  gradHighVocCertCount: number;
+  employedInField: number;
+  employedOutField: number;
+  employedFreelance: number;
+  furtherStudyCount: number;
+  unemployedCount: number;
+  workGov: number;
+  workPrivate: number;
+  workSelf: number;
+}
+

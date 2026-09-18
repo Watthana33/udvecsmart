@@ -74,3 +74,70 @@ export async function getMe(): Promise<UserProfile> {
   const res = await api.get('/auth/me');
   return res.data.user;
 }
+
+// Super Admin: เปิด-ปิดระบบรับข้อมูล
+export async function toggleSubmissionOpen(isOpen: boolean): Promise<{ is_data_submission_open: boolean }> {
+  const res = await api.put('/settings/submission-toggle', { isOpen });
+  return res.data.data;
+}
+
+// Super Admin: ตรวจสอบสถานะการส่งข้อมูลของทั้ง 29 วิทยาลัย
+export async function getSubmissionStatuses(
+  academicYear?: number,
+  semester?: number
+): Promise<{
+  academicYear: number;
+  semester: number;
+  isSubmissionOpen: boolean;
+  totalInstitutions: number;
+  submittedCount: number;
+  pendingCount: number;
+  data: any[];
+}> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  const res = await api.get('/stats/submission-status', { params });
+  return res.data;
+}
+
+// School Admin: ดึงสถิติของวิทยาลัยตนเอง
+export async function getMySchoolStat(
+  academicYear?: number,
+  semester?: number
+): Promise<{
+  isSubmissionOpen: boolean;
+  institution: any;
+  academicYear: number;
+  semester: number;
+  data: any;
+}> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  const res = await api.get('/stats/my-school', { params });
+  return res.data;
+}
+
+// School Admin: บันทึกข้อมูลสถิติของวิทยาลัย
+export async function submitSchoolStat(data: any): Promise<{ status: string; message: string; data: any }> {
+  const res = await api.post('/stats/submit', data);
+  return res.data;
+}
+
+// Super Admin: เพิ่มข่าวสาร
+export async function createNews(data: {
+  title: string;
+  content: string;
+  category?: string;
+  coverImageUrl?: string;
+}): Promise<NewsItem> {
+  const res = await api.post('/news', data);
+  return res.data.data;
+}
+
+// Super Admin: ลบข่าวสาร
+export async function deleteNews(id: string): Promise<void> {
+  await api.delete(`/news/${id}`);
+}
+

@@ -43,3 +43,47 @@ export async function getPublicSettings(_req: Request, res: Response): Promise<v
     });
   }
 }
+
+/**
+ * สลับ/ตั้งค่าสถานะเปิด-ปิดระบบกรอกข้อมูล (เฉพาะ SUPER_ADMIN)
+ * PUT /api/settings/submission-toggle
+ * Body: { isOpen: boolean }
+ */
+export async function updateSubmissionToggle(req: Request, res: Response): Promise<void> {
+  try {
+    const { isOpen } = req.body;
+    if (typeof isOpen !== 'boolean') {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณาระบุสถานะ isOpen เป็น boolean (true หรือ false)',
+      });
+      return;
+    }
+
+    const updated = await prisma.siteSetting.upsert({
+      where: { key: 'is_data_submission_open' },
+      update: { value: String(isOpen) },
+      create: {
+        key: 'is_data_submission_open',
+        value: String(isOpen),
+        description: 'สถานะเปิดรับการบันทึกข้อมูลสถิติจากวิทยาลัย',
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: isOpen ? 'เปิดระบบรับการกรอกข้อมูลเรียบร้อยแล้ว' : 'ปิดระบบรับการกรอกข้อมูลเรียบร้อยแล้ว',
+      data: {
+        is_data_submission_open: updated.value === 'true',
+      },
+    });
+  } catch (error: any) {
+    console.error('updateSubmissionToggle error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถอัปเดตสถานะระบบได้',
+      detail: error.message,
+    });
+  }
+}
+

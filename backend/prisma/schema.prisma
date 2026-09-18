@@ -48,6 +48,7 @@ model Institution {
   phone       String?
   address     String?
   province    String          @default("อุดรธานี")
+  programsCount Int           @default(12) // จำนวนสาขาวิชาที่เปิดสอน
   users       User[]
   personnels  Personnel[]
   schoolStats SchoolStat[]

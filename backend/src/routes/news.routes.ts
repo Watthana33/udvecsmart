@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { getNewsList, getNewsById } from '../controllers/news.controller.js';
+import { getNewsList, getNewsById, createNews, deleteNews } from '../controllers/news.controller.js';
+import { authenticateJWT, requireRole } from '../middlewares/auth.middleware.js';
+import { Role } from '@prisma/client';
 
 const router = Router();
 
@@ -9,4 +11,11 @@ router.get('/', getNewsList);
 // GET /api/news/:id - รายละเอียดข่าว และเพิ่มยอดวิวอัตโนมัติ
 router.get('/:id', getNewsById);
 
+// POST /api/news - เพิ่มข่าวสารใหม่ (เฉพาะ Super Admin)
+router.post('/', authenticateJWT, requireRole([Role.SUPER_ADMIN]), createNews);
+
+// DELETE /api/news/:id - ลบข่าวสาร (เฉพาะ Super Admin)
+router.delete('/:id', authenticateJWT, requireRole([Role.SUPER_ADMIN]), deleteNews);
+
 export default router;
+

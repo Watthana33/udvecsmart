@@ -35,3 +35,8 @@ Desktop.ini
 logs/
 *.log
 *.tmp
+
+# Personal Guides, Windows batch scripts & Private notes (Root only)
+/*.html
+/*.bat
+/PROJECT_REQUIREMENTS.md

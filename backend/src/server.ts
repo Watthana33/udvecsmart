@@ -9,6 +9,7 @@ import newsRoutes from './routes/news.routes.js';
 import settingRoutes from './routes/setting.routes.js';
 import contactRoutes from './routes/contact.routes.js';
 import userRoutes from './routes/user.routes.js';
+import dveAndCareerRoutes from './routes/dveAndCareer.routes.js';
 
 const app = express();
 
@@ -30,6 +31,8 @@ app.use('/api/news', newsRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/dve-career', dveAndCareerRoutes);
+
 
 // Healthcheck & Database connection test
 app.get('/api/health', async (_req: Request, res: Response) => {

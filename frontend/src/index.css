@@ -12,3 +12,21 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* Animated Border Glow Pulse (Border & Box Shadow Only - Keeps content fully crisp & opaque) */
+@keyframes borderGlowPulse {
+  0%, 100% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.45), 0 10px 25px -5px rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    border-color: #fbbf24;
+    box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.8), 0 18px 32px -6px rgba(245, 158, 11, 0.45);
+  }
+}
+
+.glow-border-only {
+  animation: borderGlowPulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+}

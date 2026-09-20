@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการอัปโหลดระบบขึ้น GitHub และแนวทางความปลอดภัย - UDPVECSmart</title>
+  <!-- Google Fonts: Sarabun & Prompt -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Sarabun', 'sans-serif'],
+            prompt: ['Prompt', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fdf3f0',
+              100: '#fae4dd',
+              500: '#b9381b',
+              600: '#932d16',
+              700: '#73210e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; }
+    h1, h2, h3, h4, .font-prompt { font-family: 'Prompt', sans-serif; }
+    .code-box {
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 0.75rem;
+      font-family: 'Courier New', Courier, monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+
+  <!-- Container -->
+  <div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- Header Banner -->
+    <div class="bg-gradient-to-r from-brand-600 via-brand-500 to-amber-600 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 opacity-15 pointer-events-none text-white text-9xl font-black">GIT</div>
+      <div class="relative z-10 space-y-3">
+        <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-semibold text-white">
+          <span>🚀 เอกสารมาตรฐานวิศวกรรมซอฟต์แวร์ (DevOps Guide)</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">คู่มือการอัปโหลดระบบขึ้น GitHub & การจัดการความปลอดภัย</h1>
+        <p class="text-sm sm:text-base text-brand-100 max-w-2xl">
+          ระบบสารสนเทศ สำนักงานอาชีวศึกษาจังหวัดอุดรธานี (UDVECSmart) • แนวทางสำหรับผู้พัฒนาและแอดมินเซิร์ฟเวอร์
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick Navigation / Summary Card -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0">1</div>
+        <div>
+          <h2 class="font-prompt text-sm font-bold text-slate-900">GitHub Private</h2>
+          <p class="text-xs text-slate-500 mt-1">ตั้งเป็น Private เสมอ ป้องกันบุคคลภายนอกมองเห็น</p>
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg shrink-0">2</div>
+        <div>
+          <h2 class="font-prompt text-sm font-bold text-slate-900">แยก Code ออกจาก Data</h2>
+          <p class="text-xs text-slate-500 mt-1">Git เก็บเฉพาะโค้ด รหัสผ่านจริงอยู่ใน .env บนเซิร์ฟเวอร์</p>
+        </div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg shrink-0">3</div>
+        <div>
+          <h2 class="font-prompt text-sm font-bold text-slate-900">Cloudflare Tunnel</h2>
+          <p class="text-xs text-slate-500 mt-1">ต่อท่อออกสู่ udvec.go.th หลังจากแอดมินเปิดระบบแล้ว</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Step-by-Step Push to GitHub -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="border-b border-slate-100 pb-4">
+        <div class="text-xs font-bold text-brand-600 uppercase tracking-wider">ตอนที่ 1: ขั้นตอนการปฏิบัติ</div>
+        <h2 class="text-xl font-bold text-slate-900 mt-1">ขั้นตอนการอัปโหลดไฟล์ขึ้น GitHub (เปิด 2 จอทำตามได้ทันที)</h2>
+      </div>
+
+      <!-- Step 1 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">จอที่ 1 (เว็บเบราว์เซอร์): สร้าง Repository บน GitHub</h3>
+        </div>
+        <div class="pl-10 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p>1.1 เข้าเว็บ <a href="https://github.com" target="_blank" class="text-blue-600 underline font-semibold">github.com</a> แล้วล็อกอิน</p>
+          <p>1.2 กดปุ่มเครื่องหมายบวก <b>`+`</b> มุมขวาบน ➔ เลือก <b>"New repository"</b></p>
+          <p>1.3 ตั้งชื่อโปรเจกต์ เช่น <b>`udvecsmart`</b></p>
+          <p>1.4 เลือกสถานะเป็น <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold">🔒 Private (ส่วนตัว)</span> <i>(สำคัญมาก เพื่อความปลอดภัยสูงสุด)</i></p>
+          <p>1.5 <b>ไม่ต้องติ๊กถูก</b> ช่อง Add README, .gitignore หรือ License เลย (เว้นว่างไว้ทั้งหมด)</p>
+          <p>1.6 กดปุ่มสีเขียว <b>"Create repository"</b> แล้วคัดลอกลิงก์ URL ที่ได้ เช่น: <code class="bg-slate-100 px-2 py-0.5 rounded text-brand-600 font-mono">https://github.com/your-username/udvecsmart.git</code></p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="space-y-3 pt-2">
+        <div class="flex items-center gap-3">
+          <span class="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">จอที่ 2 (VS Code): พิมพ์คำสั่งใน Terminal ทีละบรรทัด</h3>
+        </div>
+        <div class="pl-10 space-y-4 text-xs sm:text-sm">
+          <div>
+            <div class="text-slate-600 mb-1"><b>คำสั่งที่ 2.1:</b> สั่งให้ Git กวาดไฟล์โค้ดทั้งหมด (ไฟล์ .env จะถูกข้ามให้อัตโนมัติอย่างปลอดภัย)</div>
+            <pre class="code-box p-3.5 text-xs overflow-x-auto">git add .</pre>
+          </div>
+          <div>
+            <div class="text-slate-600 mb-1"><b>คำสั่งที่ 2.2:</b> บันทึกเวอร์ชันแรก (Commit)</div>
+            <pre class="code-box p-3.5 text-xs overflow-x-auto">git commit -m "feat: complete UDPVECSmart version 1.0"</pre>
+          </div>
+          <div>
+            <div class="text-slate-600 mb-1"><b>คำสั่งที่ 2.3:</b> ตั้งชื่อกิ่งหลักเป็น main</div>
+            <pre class="code-box p-3.5 text-xs overflow-x-auto">git branch -M main</pre>
+          </div>
+          <div>
+            <div class="text-slate-600 mb-1"><b>คำสั่งที่ 2.4:</b> เชื่อมต่อเครื่องของคุณ เข้ากับ URL ของ GitHub ที่เพิ่งสร้างมา</div>
+            <pre class="code-box p-3.5 text-xs overflow-x-auto">git remote add origin https://github.com/ชื่อผู้ใช้ของคุณ/udvecsmart.git</pre>
+          </div>
+          <div>
+            <div class="text-slate-600 mb-1"><b>คำสั่งที่ 2.5:</b> ส่งข้อมูลทั้งหมดขึ้นสู่ GitHub</div>
+            <pre class="code-box p-3.5 text-xs overflow-x-auto">git push -u origin main</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="space-y-3 pt-2">
+        <div class="flex items-center gap-3">
+          <span class="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold shrink-0">3</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">เชิญแอดมินเซิร์ฟเวอร์เข้าร่วมโปรเจกต์ (Collaborator)</h3>
+        </div>
+        <div class="pl-10 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p>3.1 ในหน้า GitHub ของโปรเจกต์ ให้ไปที่เมนู <b>Settings</b> ด้านบน</p>
+          <p>3.2 แถบซ้ายเลือก <b>Collaborators</b> ➔ กดปุ่ม <b>"Add people"</b></p>
+          <p>3.3 พิมพ์ค้นหา <b>Username หรือ อีเมล GitHub ของแอดมิน</b> แล้วกดเชิญ</p>
+          <p>3.4 เมื่อแอดมินกดตอบรับ แอดมินจะสามารถใช้คำสั่ง <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono">git clone</code> เพื่อดึงโค้ดไปรันบนเซิร์ฟเวอร์ได้ทันที</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Deep Dive into seed.ts & Passwords -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="border-b border-slate-100 pb-4">
+        <div class="text-xs font-bold text-brand-600 uppercase tracking-wider">ตอนที่ 2: ไขข้อข้องใจเรื่องรหัสผ่าน & seed.ts</div>
+        <h2 class="text-xl font-bold text-slate-900 mt-1">ลบไฟล์ `seed.ts` หลัง Build ได้ไหม? ระบบมาตรฐานเขาทำอย่างไร?</h2>
+      </div>
+
+      <!-- Question 1 -->
+      <div class="space-y-2.5">
+        <h3 class="font-prompt text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="text-brand-600">❓ ข้อที่ 1:</span> หลังจากแอดมิน Build ขึ้นออนไลน์แล้ว ผมลบไฟล์ seed.ts ได้ไหม? จะมีผลกับระบบไหม?
+        </h3>
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs sm:text-sm text-slate-700 space-y-2">
+          <p><b>คำตอบ:</b> <span class="text-emerald-700 font-bold">"ลบได้ และระบบบนเซิร์ฟเวอร์จะยังคงทำงานได้ตามปกติ 100% ครับ!"</span></p>
+          <p class="leading-relaxed">
+            <b>เหตุผล:</b> ไฟล์ <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono">seed.ts</code> มีหน้าที่เพียงอย่างเดียวคือเป็น <b>"รถส่งของรอบแรก"</b> เมื่อแอดมินสั่งคำสั่ง <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono">npm run db:seed</code> ข้อมูลจะถูกเทลงไปบันทึกถาวรในฐานข้อมูล PostgreSQL เรียบร้อยแล้ว หลังจากนั้นตัวเซิร์ฟเวอร์จริงจะทำงานผ่าน <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono">dist/server.js</code> ซึ่งไม่เคยเปิดอ่านไฟล์ seed.ts อีกเลย แม้คุณจะลบไฟล์นี้ออกไป ฐานข้อมูลและเว็บไซต์ก็ไม่พังแน่นอนครับ
+          </p>
+        </div>
+      </div>
+
+      <!-- Question 2 -->
+      <div class="space-y-2.5">
+        <h3 class="font-prompt text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="text-brand-600">❓ ข้อที่ 2:</span> ถ้าผมลบไฟล์ seed.ts ในเครื่อง แล้วตอนแอดมินอัปโค้ดไป ไฟล์นี้จะยังอยู่บนเซิร์ฟเวอร์ไหม?
+        </h3>
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs sm:text-sm text-slate-700 space-y-2">
+          <p><b>คำตอบ:</b></p>
+          <ul class="list-disc list-inside space-y-1 pl-1 leading-relaxed">
+            <li>ถ้าคุณลบในเครื่อง ➔ แล้วสั่ง <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono">git push</code> ➔ เมื่อแอดมินสั่ง <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono">git pull</code> ไฟล์ seed.ts บนโฟลเดอร์เซิร์ฟเวอร์ก็จะถูกลบตามไปด้วยครับ</li>
+            <li><b>แต่</b> ข้อมูลในฐานข้อมูลที่รันอยู่ข้างใน Docker จะ <b>ไม่หายเด็ดขาด</b> ครับ เพราะฐานข้อมูลเก็บอยู่ใน Docker Volume แยกต่างหากจากไฟล์โค้ด</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Question 3 -->
+      <div class="space-y-3">
+        <h3 class="font-prompt text-base font-bold text-slate-900 flex items-center gap-2">
+          <span class="text-brand-600">🏆 ข้อที่ 3:</span> ในระบบมาตรฐานสากล (Industry Standard) เขาจัดการเรื่องรหัสผ่านอย่างไรให้ถูกต้อง?
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          <!-- Standard 1 -->
+          <div class="p-4 rounded-2xl bg-blue-50/60 border border-blue-200 text-xs sm:text-sm space-y-2">
+            <h4 class="font-prompt font-bold text-blue-900 flex items-center gap-1.5">
+              <span>1. กฎทอง: ไม่ฮาร์ดโค้ดรหัสผ่านลงในไฟล์</span>
+            </h4>
+            <p class="text-slate-600 leading-relaxed">
+              ในระบบมาตรฐานสากล ไฟล์โค้ดจะไม่เขียนรหัสผ่านตรงๆ ลงไป แต่จะดึงค่าจากไฟล์ <b>`.env`</b> เช่น:
+              <br><code class="block mt-1 p-2 bg-white rounded border border-blue-200 font-mono text-[11px] text-blue-800">const pwd = process.env.INITIAL_ADMIN_PASSWORD;</code>
+              ซึ่งไฟล์ `.env` จะถูกตั้งค่าให้อยู่เฉพาะบนเครื่องเซิร์ฟเวอร์ปลายทาง ไม่เคยถูกอัปขึ้น Git เลย คนที่ดูใน Git จึงไม่มีทางรู้รหัสผ่าน
+            </p>
+          </div>
+
+          <!-- Standard 2 -->
+          <div class="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-xs sm:text-sm space-y-2">
+            <h4 class="font-prompt font-bold text-emerald-900 flex items-center gap-1.5">
+              <span>2. บังคับเปลี่ยนรหัสผ่านทันทีที่ระบบออนไลน์</span>
+            </h4>
+            <p class="text-slate-600 leading-relaxed">
+              ต่อให้ในไฟล์ seed.ts จะมีรหัสผ่านเริ่มต้นแบบชั่วคราวติดไป (เช่น ตอนตั้งต้นระบบ) เมื่อแอดมินเปิดระบบออนไลน์เสร็จ:
+              <br><span class="font-semibold text-emerald-800">👉 คุณแค่ล็อกอินเข้าไปที่หน้าเว็บ แล้วกดปุ่ม "เปลี่ยนรหัสผ่าน" ทันที</span> รหัสผ่านที่เคยอยู่ในโค้ดก็จะใช้ไม่ได้อีกต่อไปตลอดกาล
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Section 3: Summary Table -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4">
+      <h2 class="text-lg font-bold text-slate-900">สรุปการแบ่งหน้าที่: สิ่งที่อยู่ใน Git vs สิ่งที่อยู่ใน Server</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs sm:text-sm">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700">
+              <th class="p-3 rounded-l-xl">รายการ</th>
+              <th class="p-3">อยู่ใน GitHub ไหม?</th>
+              <th class="p-3 rounded-r-xl">ใครเข้าถึงได้บ้าง?</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr>
+              <td class="p-3 font-semibold text-slate-900">ไฟล์โค้ด (.tsx, .ts, Dockerfile)</td>
+              <td class="p-3 text-emerald-600 font-bold">✅ อยู่บน GitHub</td>
+              <td class="p-3 text-slate-600">เฉพาะคุณ และแอดมินที่ถูกเชิญ (Private)</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-semibold text-slate-900">ไฟล์รหัสผ่านจริง (.env)</td>
+              <td class="p-3 text-rose-600 font-bold">❌ ไม่อยู่บน GitHub เด็ดขาด</td>
+              <td class="p-3 text-slate-600">อยู่เฉพาะในเครื่องของคุณ และบนเครื่องเซิร์ฟเวอร์</td>
+            </tr>
+            <tr>
+              <td class="p-3 font-semibold text-slate-900">ข้อมูลสถิติ & ประวัติผู้ใช้จริง</td>
+              <td class="p-3 text-rose-600 font-bold">❌ ไม่อยู่บน GitHub</td>
+              <td class="p-3 text-slate-600">อยู่ในฐานข้อมูล PostgreSQL ภายในเซิร์ฟเวอร์เท่านั้น</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="text-center text-xs text-slate-400 py-4">
+      UDPVECSmart System • สำนักงานอาชีวศึกษาจังหวัดอุดรธานี • พัฒนาด้วยมาตรฐานความปลอดภัยระดับสูง
+    </div>
+
+  </div>
+
+</body>
+</html>

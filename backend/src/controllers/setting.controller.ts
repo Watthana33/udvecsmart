@@ -95,9 +95,13 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
   try {
     const {
       allowSectionGeneral,
+      allowSectionTeachers,
       allowSectionGrades,
+      allowSectionDve,
+      allowSectionCareer,
       allowSectionGraduates,
       glowSection,
+      allowSchoolExport,
     } = req.body;
 
     const upsertPromises = [];
@@ -112,12 +116,42 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
       );
     }
 
+    if (allowSectionTeachers !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_teachers' },
+          update: { value: String(allowSectionTeachers) },
+          create: { key: 'allow_section_teachers', value: String(allowSectionTeachers), description: 'อนุญาตให้แก้ไขข้อมูลครูและบุคลากร' },
+        })
+      );
+    }
+
     if (allowSectionGrades !== undefined) {
       upsertPromises.push(
         prisma.siteSetting.upsert({
           where: { key: 'allow_section_grades' },
           update: { value: String(allowSectionGrades) },
           create: { key: 'allow_section_grades', value: String(allowSectionGrades), description: 'อนุญาตให้แก้ไขสถิตินักเรียนแยกชั้นปี' },
+        })
+      );
+    }
+
+    if (allowSectionDve !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_dve' },
+          update: { value: String(allowSectionDve) },
+          create: { key: 'allow_section_dve', value: String(allowSectionDve), description: 'อนุญาตให้แก้ไขข้อมูลแผนกวิชาทวิภาคี' },
+        })
+      );
+    }
+
+    if (allowSectionCareer !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_section_career' },
+          update: { value: String(allowSectionCareer) },
+          create: { key: 'allow_section_career', value: String(allowSectionCareer), description: 'อนุญาตให้แก้ไขข้อมูลหลักสูตรห้องเรียนอาชีพ' },
         })
       );
     }
@@ -142,6 +176,16 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
       );
     }
 
+    if (allowSchoolExport !== undefined) {
+      upsertPromises.push(
+        prisma.siteSetting.upsert({
+          where: { key: 'allow_school_export' },
+          update: { value: String(allowSchoolExport) },
+          create: { key: 'allow_school_export', value: String(allowSchoolExport), description: 'อนุญาตให้สถานศึกษา Export Excel และพิมพ์รายงานได้' },
+        })
+      );
+    }
+
     await Promise.all(upsertPromises);
 
     res.json({
@@ -149,9 +193,13 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
       message: 'บันทึกการตั้งค่าสิทธิ์และการเน้นย้ำเรียบร้อยแล้ว',
       data: {
         allowSectionGeneral,
+        allowSectionTeachers,
         allowSectionGrades,
+        allowSectionDve,
+        allowSectionCareer,
         allowSectionGraduates,
         glowSection,
+        allowSchoolExport,
       },
     });
   } catch (error: any) {
@@ -351,6 +399,59 @@ export async function setCurrentAcademicPeriod(req: Request, res: Response): Pro
     res.status(500).json({ status: 'error', message: 'ไม่สามารถตั้งรอบปัจจุบันได้' });
   }
 }
+
+/**
+ * สถิติยอดผู้เข้าชมเว็บไซต์ (Centralized Visitor Counter)
+ * สามารถกำหนดค่าเริ่มต้นก่อน Deploy ได้ที่ DEFAULT_VISITOR_BASE (เช่น 18520 หรือ 0)
+ */
+export const DEFAULT_VISITOR_BASE = 18520;
+
+/**
+ * ดึงยอดผู้เข้าชมเว็บไซต์
+ * GET /api/settings/visitor-count
+ */
+export async function getVisitorCount(_req: Request, res: Response): Promise<void> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: 'visitor_count' },
+    });
+    const count = setting ? Number(setting.value) : DEFAULT_VISITOR_BASE;
+    res.json({ status: 'success', count });
+  } catch (error: any) {
+    console.error('getVisitorCount error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลสถิติผู้เข้าชมได้' });
+  }
+}
+
+/**
+ * บันทึกนับยอดผู้เข้าชมเว็บไซต์เพิ่มขึ้น 1 (สำหรับ Session ใหม่)
+ * POST /api/settings/visitor-count/increment
+ */
+export async function incrementVisitorCount(_req: Request, res: Response): Promise<void> {
+  try {
+    const setting = await prisma.siteSetting.findUnique({
+      where: { key: 'visitor_count' },
+    });
+    const current = setting ? Number(setting.value) : DEFAULT_VISITOR_BASE;
+    const next = current + 1;
+
+    await prisma.siteSetting.upsert({
+      where: { key: 'visitor_count' },
+      update: { value: next.toString() },
+      create: {
+        key: 'visitor_count',
+        value: next.toString(),
+        description: 'สถิติยอดผู้เข้าชมเว็บไซต์รวม (ปรับค่าเริ่มต้นได้)',
+      },
+    });
+
+    res.json({ status: 'success', count: next });
+  } catch (error: any) {
+    console.error('incrementVisitorCount error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถนับสถิติผู้เข้าชมได้' });
+  }
+}
+
 
 
 

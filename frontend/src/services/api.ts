@@ -1,7 +1,19 @@
 import axios from 'axios';
-import { StatsOverview, Institution, NewsItem, SiteSettings, UserProfile, InstitutionStatItem, ContactFormInput } from '../types';
+import {
+  StatsOverview,
+  Institution,
+  NewsItem,
+  SiteSettings,
+  UserProfile,
+  InstitutionStatItem,
+  ContactFormInput,
+  DveDepartmentItem,
+  CareerClassroomItem,
+  DveAndCareerSummary,
+} from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -89,6 +101,16 @@ export async function getSubmissionStatuses(
   academicYear: number;
   semester: number;
   isSubmissionOpen: boolean;
+  permissions?: {
+    allowSectionGeneral?: boolean;
+    allowSectionTeachers?: boolean;
+    allowSectionGrades?: boolean;
+    allowSectionDve?: boolean;
+    allowSectionCareer?: boolean;
+    allowSectionGraduates?: boolean;
+    glowSection?: string;
+    allowSchoolExport?: boolean;
+  };
   totalInstitutions: number;
   submittedCount: number;
   pendingCount: number;
@@ -133,8 +155,24 @@ export async function createNews(data: {
   content: string;
   category?: string;
   coverImageUrl?: string;
+  linkUrl?: string;
 }): Promise<NewsItem> {
   const res = await api.post('/news', data);
+  return res.data.data;
+}
+
+// Super Admin: แก้ไขข่าวสาร
+export async function updateNews(
+  id: string,
+  data: {
+    title: string;
+    content: string;
+    category?: string;
+    coverImageUrl?: string | null;
+    linkUrl?: string | null;
+  }
+): Promise<NewsItem> {
+  const res = await api.put(`/news/${id}`, data);
   return res.data.data;
 }
 
@@ -146,6 +184,12 @@ export async function deleteNews(id: string): Promise<void> {
 // Super Admin: ปรับลำดับข่าวสาร
 export async function reorderNews(orderedIds: string[]): Promise<any> {
   const res = await api.put('/news/reorder', { orderedIds });
+  return res.data;
+}
+
+// เพิ่มยอดวิวข่าวสาร (+1 viewCount)
+export async function incrementNewsView(id: string): Promise<{ status: string; data: { id: string; viewCount: number } }> {
+  const res = await api.patch(`/news/${id}/view`);
   return res.data;
 }
 
@@ -161,6 +205,8 @@ export async function updateInstitutionDirector(
     website?: string;
     address?: string;
     programsCount?: number;
+    programsList?: string[] | string;
+    programsUrl?: string;
   }
 ): Promise<any> {
   const res = await api.patch(`/institutions/${id}/director`, data);
@@ -177,17 +223,29 @@ export async function createInstitution(data: {
   website?: string;
   address?: string;
   programsCount?: number;
+  programsList?: string[] | string;
+  programsUrl?: string;
 }): Promise<any> {
   const res = await api.post('/institutions', data);
   return res.data;
 }
 
-// Super Admin: บันทึกการตั้งค่าเปิด-ปิดรายหมวด & แสงกระพริบ
+// Super Admin: ลบสถานศึกษา
+export async function deleteInstitution(id: string): Promise<any> {
+  const res = await api.delete(`/institutions/${id}`);
+  return res.data;
+}
+
+// Super Admin: บันทึกการตั้งค่าเปิด-ปิดรายหมวด & แสงกระพริบ & สิทธิ์ Export/พิมพ์
 export async function updateSubmissionPermissions(data: {
   allowSectionGeneral: boolean;
+  allowSectionTeachers?: boolean;
   allowSectionGrades: boolean;
+  allowSectionDve?: boolean;
+  allowSectionCareer?: boolean;
   allowSectionGraduates: boolean;
   glowSection: string;
+  allowSchoolExport?: boolean;
 }): Promise<any> {
   const res = await api.put('/settings/submission-permissions', data);
   return res.data;
@@ -239,20 +297,98 @@ export async function createAcademicPeriod(data: {
   year: number;
   semester: number;
   isCurrent?: boolean;
-}): Promise<any> {
+}): Promise<any[]> {
   const res = await api.post('/settings/academic-periods', data);
-  return res.data;
+  return res.data.data || res.data;
 }
 
-export async function deleteAcademicPeriod(id: string): Promise<any> {
+export async function deleteAcademicPeriod(id: string): Promise<any[]> {
   const res = await api.delete(`/settings/academic-periods/${id}`);
+  return res.data.data || res.data;
+}
+
+export async function setCurrentAcademicPeriod(id: string): Promise<any[]> {
+  const res = await api.put(`/settings/academic-periods/${id}/current`);
+  return res.data.data || res.data;
+}
+
+// Visitor Count (สถิติผู้เข้าชมเว็บไซต์)
+export async function getVisitorCount(): Promise<number> {
+  const res = await api.get('/settings/visitor-count');
+  return res.data.count;
+}
+
+export async function incrementVisitorCount(): Promise<number> {
+  const res = await api.post('/settings/visitor-count/increment');
+  return res.data.count;
+}
+
+// ========================================================
+// ทวิภาคี & ห้องเรียนอาชีพ (DVE & Career Classrooms)
+// ========================================================
+
+export async function getDveDepartments(
+  academicYear?: number,
+  semester?: number,
+  institutionId?: string
+): Promise<DveDepartmentItem[]> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  if (institutionId) params.institutionId = institutionId;
+  const res = await api.get('/dve-career/departments', { params });
+  return res.data.data;
+}
+
+export async function saveDveDepartments(data: {
+  academicYear: number;
+  semester?: number;
+  institutionId?: string;
+  departments: DveDepartmentItem[];
+}): Promise<any> {
+  const res = await api.post('/dve-career/departments', data);
   return res.data;
 }
 
-export async function setCurrentAcademicPeriod(id: string): Promise<any> {
-  const res = await api.put(`/settings/academic-periods/${id}/current`);
+export async function getCareerClassrooms(
+  academicYear?: number,
+  semester?: number,
+  institutionId?: string,
+  trainingType?: string
+): Promise<CareerClassroomItem[]> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  if (institutionId) params.institutionId = institutionId;
+  if (trainingType) params.trainingType = trainingType;
+  const res = await api.get('/dve-career/career-classrooms', { params });
+  return res.data.data;
+}
+
+export async function saveCareerClassrooms(data: {
+  academicYear: number;
+  semester?: number;
+  institutionId?: string;
+  classrooms: CareerClassroomItem[];
+}): Promise<any> {
+  const res = await api.post('/dve-career/career-classrooms', data);
   return res.data;
 }
+
+export async function getDveAndCareerSummary(
+  academicYear?: number,
+  semester?: number,
+  institutionId?: string
+): Promise<DveAndCareerSummary> {
+  const params: any = {};
+  if (academicYear) params.academicYear = academicYear;
+  if (semester) params.semester = semester;
+  if (institutionId) params.institutionId = institutionId;
+  const res = await api.get('/dve-career/summary', { params });
+  return res.data.data;
+}
+
+
 
 
 

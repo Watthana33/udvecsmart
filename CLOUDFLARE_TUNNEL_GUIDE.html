@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการติดตั้ง Cloudflare Tunnel แบบ Step-by-Step - UDPVECSmart</title>
+  <!-- Google Fonts: Prompt & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Sarabun', 'sans-serif'],
+            prompt: ['Prompt', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fdf3f0',
+              100: '#fae4dd',
+              500: '#b9381b',
+              600: '#932d16',
+              700: '#73210e',
+            },
+            cf: {
+              orange: '#f38020',
+              dark: '#1e1e1e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; }
+    h1, h2, h3, h4, .font-prompt { font-family: 'Prompt', sans-serif; }
+    .code-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 0.75rem;
+      font-family: 'Courier New', Courier, monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+
+  <div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- Header Banner -->
+    <div class="bg-gradient-to-r from-cf-dark via-slate-900 to-amber-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+      <div class="absolute -right-8 -bottom-8 opacity-10 text-white text-9xl font-black pointer-events-none">TUNNEL</div>
+      <div class="relative z-10 space-y-2">
+        <div class="inline-flex items-center gap-2 bg-cf-orange/20 border border-cf-orange/40 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-semibold text-cf-orange">
+          <span>🌐 Cloudflare Zero Trust Tutorial (ระดับง่ายสุด)</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">คู่มือการเชื่อมต่อ Cloudflare Tunnel เข้ากับโดเมน udvec.go.th</h1>
+        <p class="text-sm sm:text-base text-slate-300 max-w-2xl">
+          ต่อท่อจากเครื่องคอมพิวเตอร์/เซิร์ฟเวอร์โรงเรียน ออกสู่อินเทอร์เน็ต • ไม่ต้องฟอร์เวิร์ดพอร์ต • ไม่ต้องมี Public IP • ได้ HTTPS ฟรีตลอดชีพ
+        </p>
+      </div>
+    </div>
+
+    <!-- The "Why" Card: ทำไมต้องใช้ Cloudflare Tunnel? -->
+    <div class="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-3">
+      <h2 class="font-prompt text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+        <span class="text-2xl">💡</span>
+        <span>เข้าใจง่ายๆ: Cloudflare Tunnel ทำงานอย่างไร?</span>
+      </h2>
+      <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+        ปกติถ้าจะเปิดเว็บจากในโรงเรียน เราต้องขอ <b>Fixed Public IP</b> และต้องไปขอให้ฝ่ายเครือข่ายตั้งค่า <b>Forward Port (พอร์ต 80, 443)</b> ในเราเตอร์ ซึ่งมักจะติดปัญหาไฟร์วอลล์ของกระทรวงฯ หรือ สอศ.
+      </p>
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs sm:text-sm text-amber-950 space-y-1">
+        <p class="font-bold">✨ พระเอกคือ Cloudflare Tunnel:</p>
+        <p>มันจะ <b>"เจาะท่อจากข้างในเครื่องเราวิ่งออกไปหา Cloudflare เอง"</b> (เหมือนการเปิดดู YouTube ที่ไม่ต้องเปิดพอร์ตเราเตอร์) แล้ว Cloudflare จะทำหน้าที่ดึงคนทั้งโลกที่พิมพ์ <code class="bg-white px-1.5 py-0.5 rounded font-mono text-brand-600">https://udvec.go.th</code> มุดท่อนี้เข้ามาเปิดดูหน้าเว็บในเครื่องเราได้ทันที ปลอดภัย 100%!</p>
+      </div>
+    </div>
+
+    <!-- Step-by-Step Guide -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-8">
+      <div class="border-b border-slate-100 pb-4">
+        <div class="text-xs font-bold text-cf-orange uppercase tracking-wider">ขั้นตอนการปฏิบัติงาน</div>
+        <h2 class="text-xl font-bold text-slate-900 mt-1">6 ขั้นตอนง่ายๆ ขอแค่ใช้คอมเป็นก็ทำตามได้ทันที</h2>
+      </div>
+
+      <!-- Step 1 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">1</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">การผูกโดเมน udvec.go.th เข้ากับ Cloudflare (ทำครั้งเดียว)</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p class="bg-blue-50 border border-blue-200 p-3 rounded-xl text-blue-900 font-medium">
+            💡 <b>ไม่ต้องโทรหาบริษัทที่ขายโดเมนครับ!</b> แค่ล็อกอินเข้าหน้าเว็บที่คุณซื้อโดเมนมา (เช่น เว็บ THNIC) แล้วเข้าไปที่เมนูจัดการโดเมน
+          </p>
+          <p>1.1 เข้าเว็บ <a href="https://dash.cloudflare.com" target="_blank" class="text-blue-600 underline font-semibold">dash.cloudflare.com</a> สมัครสมาชิกฟรี ➔ กดปุ่ม <b>"Add a domain"</b></p>
+          <p>1.2 พิมพ์ชื่อโดเมน <b>`udvec.go.th`</b> ➔ เลือกแพ็กเกจ <b>Free ($0)</b></p>
+          <p>1.3 Cloudflare จะโชว์ชื่อ <b>Nameserver 2 ค่า</b> (เช่น <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-800">ns1.cloudflare.com</code>, <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-800">ns2.cloudflare.com</code>)</p>
+          <p>1.4 นำ 2 ค่านี้ไปแปะในหน้าเว็บจัดการโดเมนที่คุณซื้อมา (หรือส่ง 2 ค่านั้นให้แอดมินไอทีช่วยเปลี่ยนให้ได้เลยครับ ใช้เวลาแค่ 1 นาที!)</p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">2</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">เข้าไปที่หน้าเมนู Zero Trust</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p>2.1 มองที่แถบเมนูด้านซ้ายสุดของหน้าจอ คลิกที่คำว่า <b>"Zero Trust"</b></p>
+          <p>2.2 <i>(เฉพาะคนเข้าครั้งแรก)</i> ระบบอาจจะให้ตั้งชื่อทีม (Team name) ให้พิมพ์ชื่ออะไรก็ได้ เช่น <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-800">udvec-team</code> แล้วเลือกแพ็กเกจ Free Plan</p>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">3</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">สร้างท่อใหม่ (Create Tunnel)</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p>3.1 ในหน้าต่าง Zero Trust ให้มองเมนูซ้ายมือ เลือก: <b>Networks ➔ Tunnels</b></p>
+          <p>3.2 กดปุ่มสีฟ้า <b>"Add a tunnel"</b></p>
+          <p>3.3 เลือกประเภทเป็น <b>Cloudflared</b> ➔ กด <b>Next</b></p>
+          <p>3.4 <b>Name your tunnel:</b> ตั้งชื่อท่อ เช่น <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-800">udvec-tunnel</code> แล้วกด <b>Save tunnel</b></p>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">4</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">ก๊อปปี้คำสั่ง 1 บรรทัดส่งให้แอดมิน (ไม่ต้องแตะไฟล์ .env เลย!)</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-3">
+          <p>ในหน้านี้ ให้กดเลือกแท็บ <b>Docker</b></p>
+          
+          <div class="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 space-y-2">
+            <span class="font-prompt font-bold text-xs text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">🎯 วิธีที่ง่ายที่สุดในโลก (แอดมินชอบมาก):</span>
+            <p class="text-xs text-slate-700">Cloudflare จะมีกล่องคำสั่งสีดำยาวๆ ให้กดปุ่ม <b>"Copy"</b> ได้เลย หน้าตาคำสั่งจะคล้ายแบบนี้:</p>
+            <div class="code-box p-3 text-xs overflow-x-auto text-emerald-400 font-mono">
+              docker run -d --name cloudflared --restart always cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJh...
+            </div>
+            <p class="text-xs text-slate-600 pt-1">
+              👉 <b>หน้าที่ของคุณ:</b> แค่ก๊อปปี้คำสั่งนี้ ส่ง LINE ให้แอดมินไอที แล้วบอกว่า:  
+              <i>"พี่แอดมินครับ ช่วยเอาคำสั่งนี้ไปแปะรันในเซิร์ฟเวอร์ทีเดียวจบเลยครับ"</i>  
+              <b>(ไม่ต้องไปเปิดไฟล์ .env หรือแก้โค้ดอะไรทั้งนั้น!)</b>
+            </p>
+          </div>
+
+          <p>เมื่อแอดมินกดรันในเซิร์ฟเวอร์เสร็จ หน้าจอ Cloudflare ของคุณจะขึ้นจุดสีเขียวว่า <span class="text-emerald-600 font-bold">● Connected</span> แปลว่าท่อทะลุหากันแล้ว ให้กดปุ่ม <b>Next</b></p>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">5</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">ตั้งค่าชื่อโดเมนที่จะให้คนเข้า (Public Hostname)</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-3">
+          <p>หน้านี้คือหัวใจสำคัญ! จะเป็นการบอกว่า คนพิมพ์โดเมนนี้ ให้วิ่งมุดท่อไปเปิดหน้าเว็บที่พอร์ตไหน:</p>
+
+          <div class="bg-slate-900 text-slate-200 p-4 rounded-2xl space-y-2 text-xs font-mono">
+            <div><b>Subdomain:</b> <span class="text-amber-400">เว้นว่างไว้</span> (หากอยากให้เข้าตรงๆ udvec.go.th) หรือพิมพ์ <span class="text-amber-400">vecsmart</span> (ถ้าอยากให้เป็น vecsmart.udvec.go.th)</div>
+            <div><b>Domain:</b> เลือก <span class="text-emerald-400">udvec.go.th</span></div>
+            <div><b>Path:</b> <span class="text-slate-400">เว้นว่างไว้</span></div>
+            <div class="border-t border-slate-700 pt-2 mt-2">
+              <div><b>Type:</b> เลือก <span class="text-sky-400">HTTP</span></div>
+              <div><b>URL:</b> พิมพ์ <span class="text-sky-400">localhost:80</span> <i>(หรือ <span class="text-sky-400">frontend:80</span> ถ้าใช้ใน docker network)</i></div>
+            </div>
+          </div>
+
+          <p>กดปุ่ม <b>"Save tunnel"</b> ด้านล่างขวา เป็นอันเสร็จสิ้นกระบวนการทั้งหมด!</p>
+        </div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="w-8 h-8 rounded-xl bg-cf-orange text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">6</span>
+          <h3 class="font-prompt text-base font-bold text-slate-900">ทดสอบเปิดใช้งานจริงจากมือถือ หรือเน็ตข้างนอก!</h3>
+        </div>
+        <div class="pl-11 text-xs sm:text-sm text-slate-600 space-y-2">
+          <p>6.1 หยิบโทรศัพท์มือถือของคุณขึ้นมา (ปิด Wi-Fi แล้วใช้ 4G/5G เพื่อจำลองว่าเป็นคนจากข้างนอก)</p>
+          <p>6.2 พิมพ์ชื่อโดเมนของคุณ: <code class="bg-slate-100 px-2 py-0.5 rounded font-mono text-brand-600 font-bold">https://udvec.go.th</code></p>
+          <p>🎉 <b>หน้าเว็บ UDPVECSmart จะเปิดขึ้นมาทันที พร้อมกุญแจเขียวปลอดภัย (HTTPS) เรียบร้อยแล้วครับ!</b></p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Troubleshooting Tips -->
+    <div class="bg-slate-900 text-slate-200 rounded-3xl p-6 sm:p-7 space-y-3">
+      <h3 class="font-prompt text-base font-bold text-cf-orange flex items-center gap-2">
+        <span>🛠️ เกร็ดน่ารู้ & แก้ปัญหา (Troubleshooting)</span>
+      </h3>
+      <ul class="text-xs sm:text-sm space-y-2 text-slate-300 list-disc list-inside">
+        <li><b>ถ้าเปิดเว็บแล้วขึ้น Error 502 Bad Gateway:</b> แสดงว่าเครื่องเซิร์ฟเวอร์ยังไม่ได้กดเปิดระบบเว็บ (พอร์ต 80 ยังไม่รัน) ให้แอดมินรัน Docker ให้เรียบร้อยก่อน</li>
+        <li><b>สลับโหมดง่ายมาก:</b> ในอนาคตถ้าอยากย้ายเซิร์ฟเวอร์ไปเครื่องอื่น ก็แค่เอา Token นี้ไปรันที่เครื่องใหม่ ไม่ต้องแก้ DNS โดเมนเลยแม้แต่ตัวเดียวครับ</li>
+      </ul>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-slate-400 py-2">
+      คู่มือติดตั้ง Cloudflare Tunnel • UDPVECSmart (สำนักงานอาชีวศึกษาจังหวัดอุดรธานี) • เข้าใจง่าย ปลอดภัย 100%
+    </div>
+
+  </div>
+
+</body>
+</html>

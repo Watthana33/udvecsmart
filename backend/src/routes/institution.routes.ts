@@ -4,6 +4,7 @@ import {
   getInstitutionById,
   updateInstitutionDirector,
   createInstitution,
+  deleteInstitution,
 } from '../controllers/institution.controller.js';
 import { authenticateJWT, requireRole } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
@@ -22,4 +23,8 @@ router.patch('/:id/director', authenticateJWT, updateInstitutionDirector);
 // POST /api/institutions - เพิ่มสถานศึกษาใหม่ (เฉพาะ SUPER_ADMIN)
 router.post('/', authenticateJWT, requireRole([Role.SUPER_ADMIN]), createInstitution);
 
+// DELETE /api/institutions/:id - ลบสถานศึกษา (เฉพาะ SUPER_ADMIN)
+router.delete('/:id', authenticateJWT, requireRole([Role.SUPER_ADMIN]), deleteInstitution);
+
 export default router;
+

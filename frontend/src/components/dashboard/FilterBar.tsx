@@ -1,9 +1,10 @@
 import React from 'react';
-import { Institution } from '../../types';
+import { Institution, AcademicPeriodItem } from '../../types';
 import { Calendar, Layers, School, Filter, CheckCircle2, RotateCcw } from 'lucide-react';
 
 interface FilterBarProps {
   institutions: Institution[];
+  academicPeriods?: AcademicPeriodItem[];
   selectedYear: number;
   setSelectedYear: (y: number) => void;
   selectedSemester: number;
@@ -14,6 +15,7 @@ interface FilterBarProps {
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   institutions,
+  academicPeriods,
   selectedYear,
   setSelectedYear,
   selectedSemester,
@@ -24,6 +26,28 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const publicColleges = institutions.filter((i) => i.type === 'PUBLIC');
   const privateColleges = institutions.filter((i) => i.type === 'PRIVATE');
   const selectedInst = institutions.find((i) => i.id === selectedInstitutionId);
+
+  // ปีทั้งหมดในระบบแบบไดนามิก
+  const availableYears = React.useMemo(() => {
+    if (academicPeriods && academicPeriods.length > 0) {
+      const yearsSet = new Set(academicPeriods.map((p) => p.year));
+      return Array.from(yearsSet).sort((a, b) => b - a);
+    }
+    return [2570, 2569, 2568, 2567];
+  }, [academicPeriods]);
+
+  // หาภาคเรียนที่มีให้เลือกสำหรับปีที่เลือก
+  const availableSemesters = React.useMemo(() => {
+    if (academicPeriods && academicPeriods.length > 0) {
+      const sems = academicPeriods
+        .filter((p) => p.year === selectedYear)
+        .map((p) => p.semester);
+      if (sems.length > 0) {
+        return Array.from(new Set(sems)).sort((a, b) => a - b);
+      }
+    }
+    return [1, 2];
+  }, [academicPeriods, selectedYear]);
 
   return (
     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow">
@@ -46,7 +70,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
               <span className="truncate max-w-[280px] sm:max-w-xs font-medium text-slate-700">
-                {selectedInst ? selectedInst.name : 'แสดงสถิติรวมทั้งจังหวัด (29 แห่ง)'}
+                {selectedInst ? selectedInst.name : 'แสดงสถิติรวมทั้งจังหวัด'}
               </span>
             </p>
           </div>
@@ -57,52 +81,57 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           
           {/* 1. Academic Year */}
           <div className="sm:col-span-3 relative">
-            <Calendar className="w-3.5 h-3.5 text-[#932d16] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Calendar className="w-4 h-4 text-amber-700 stroke-[1.8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer shadow-xs"
               title="เลือกปีการศึกษา"
             >
-              <option value={2570}>ปีการศึกษา 2570</option>
-              <option value={2569}>ปีการศึกษา 2569</option>
-              <option value={2568}>ปีการศึกษา 2568 (ปัจจุบัน)</option>
-              <option value={2567}>ปีการศึกษา 2567</option>
+              {availableYears.map((y) => (
+                <option key={y} value={y}>
+                  ปีการศึกษา {y}
+                </option>
+              ))}
             </select>
           </div>
 
           {/* 2. Semester */}
           <div className="sm:col-span-3 relative">
-            <Layers className="w-3.5 h-3.5 text-[#932d16] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Layers className="w-4 h-4 text-blue-700 stroke-[1.8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedSemester}
               onChange={(e) => setSelectedSemester(Number(e.target.value))}
-              className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer shadow-xs"
               title="เลือกภาคเรียน"
             >
-              <option value={1}>ภาคเรียนที่ 1</option>
-              <option value={2}>ภาคเรียนที่ 2</option>
+              {availableSemesters.map((s) => (
+                <option key={s} value={s}>
+                  ภาคเรียนที่ {s}
+                </option>
+              ))}
             </select>
           </div>
 
+
           {/* 3. Institution Selector (Wider) */}
           <div className="sm:col-span-6 relative">
-            <School className="w-3.5 h-3.5 text-[#932d16] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <School className="w-4 h-4 text-[#932d16] stroke-[1.8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedInstitutionId}
               onChange={(e) => setSelectedInstitutionId(e.target.value)}
-              className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer truncate"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer truncate shadow-xs"
               title="เลือกสถานศึกษา"
             >
-              <option value="ALL">🏛️ แสดงทุกสถานศึกษาในจังหวัด (29 แห่ง)</option>
-              <optgroup label="── ภาครัฐบาล (10 แห่ง) ──">
+              <option value="ALL">แสดงทุกสถานศึกษาในจังหวัด</option>
+              <optgroup label="── ภาครัฐบาล ──">
                 {publicColleges.map((col) => (
                   <option key={col.id} value={col.id}>
                     {col.name} ({col.code})
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="── ภาคเอกชน (19 แห่ง) ──">
+              <optgroup label="── ภาคเอกชน ──">
                 {privateColleges.map((col) => (
                   <option key={col.id} value={col.id}>
                     {col.name} ({col.code})

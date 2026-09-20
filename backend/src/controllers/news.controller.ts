@@ -34,6 +34,7 @@ export async function getNewsList(req: Request, res: Response): Promise<void> {
           title: true,
           content: true,
           coverImageUrl: true,
+          linkUrl: true,
           category: true,
           viewCount: true,
           createdAt: true,
@@ -155,7 +156,7 @@ export async function getNewsById(req: Request, res: Response): Promise<void> {
  */
 export async function createNews(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { title, content, coverImageUrl, category } = req.body;
+    const { title, content, coverImageUrl, category, linkUrl } = req.body;
     if (!title || !content) {
       res.status(400).json({
         status: 'error',
@@ -169,6 +170,7 @@ export async function createNews(req: AuthRequest, res: Response): Promise<void>
         title,
         content,
         coverImageUrl: coverImageUrl || null,
+        linkUrl: linkUrl || null,
         category: category && Object.values(NewsCategory).includes(category) ? category : NewsCategory.ANNOUNCEMENT,
         isPublished: true,
         authorId: req.user?.userId,
@@ -185,6 +187,56 @@ export async function createNews(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถสร้างข่าวสารได้',
+      detail: error.message,
+    });
+  }
+}
+
+/**
+ * แก้ไขข่าวสาร (เฉพาะ SUPER_ADMIN)
+ * PUT /api/news/:id
+ */
+export async function updateNews(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { title, content, coverImageUrl, category, linkUrl } = req.body;
+
+    if (!title || !content) {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณากรอกหัวข้อข่าวและเนื้อหาข่าว',
+      });
+      return;
+    }
+
+    const updatedNews = await prisma.news.update({
+      where: { id },
+      data: {
+        title,
+        content,
+        coverImageUrl: coverImageUrl !== undefined ? coverImageUrl : undefined,
+        linkUrl: linkUrl !== undefined ? (linkUrl || null) : undefined,
+        ...(category && Object.values(NewsCategory).includes(category) ? { category } : {}),
+      },
+    });
+
+    res.json({
+      status: 'success',
+      message: 'แก้ไขข้อมูลข่าวสารเรียบร้อยแล้ว',
+      data: updatedNews,
+    });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข่าวสารที่ต้องการแก้ไข',
+      });
+      return;
+    }
+    console.error('updateNews error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถแก้ไขข่าวสารได้',
       detail: error.message,
     });
   }
@@ -258,6 +310,46 @@ export async function reorderNews(req: AuthRequest, res: Response): Promise<void
       status: 'error',
       message: 'ไม่สามารถปรับลำดับข่าวสารได้',
       detail: error.message,
+    });
+  }
+}
+
+/**
+ * เพิ่มยอดเข้าชมข่าวสาร (+1 viewCount)
+ * PATCH /api/news/:id/view
+ */
+export async function incrementNewsView(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const news = await prisma.news.update({
+      where: { id },
+      data: {
+        viewCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+        viewCount: true,
+      },
+    });
+
+    res.json({
+      status: 'success',
+      data: news,
+    });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข่าวสารที่ต้องการเพิ่มยอดวิว',
+      });
+      return;
+    }
+    console.error('incrementNewsView error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถเพิ่มยอดวิวได้',
     });
   }
 }

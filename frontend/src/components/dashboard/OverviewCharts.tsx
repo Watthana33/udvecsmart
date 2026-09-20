@@ -146,13 +146,13 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
       {
         label: 'ชาย (คน)',
         data: displayInstitutions.map((i) => i.maleStudents),
-        backgroundColor: '#0284c7',
+        backgroundColor: '#059669', // Emerald Green (Square Color 3)
         borderRadius: 4,
       },
       {
         label: 'หญิง (คน)',
         data: displayInstitutions.map((i) => i.femaleStudents),
-        backgroundColor: '#7c3aed',
+        backgroundColor: '#e11d48', // Coral Rose (Square Color 4)
         borderRadius: 4,
       },
     ],
@@ -170,7 +170,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
     datasets: [
       {
         data: [totalMale, totalFemale],
-        backgroundColor: ['#0284c7', '#7c3aed'],
+        backgroundColor: ['#059669', '#e11d48'],
         borderColor: ['#ffffff', '#ffffff'],
         borderWidth: 3,
         hoverOffset: 6,
@@ -190,7 +190,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               <span>Grade Level Distribution</span>
             </div>
             <h3 className="text-lg sm:text-xl font-bold text-slate-900 mt-1">
-              จำนวนนักเรียน นักศึกษา แยกตามระดับชั้นปี (ปวช.1 - ปวส.2 - ป.ตรี)
+              จำนวนนักเรียน นักศึกษา แยกตามระดับชั้นปี (ปวช. - ปวส. - ปริญญาตรี(ทล.บ.) ) {isFiltered && `ของ ${selectedInstName}`} 
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีม่วง) และสถานศึกษาภาคเอกชน (สีฟ้า) ตามหลัก Square Color Harmony
@@ -260,7 +260,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 2: Horizontal Bar (ชาย-หญิง รายวิทยาลัย) */}
         <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0284c7] mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Gender Comparison by College</span>
             </div>
@@ -268,7 +268,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               จำนวนยอดรวมนักเรียน ชาย - หญิง ของแต่ละวิทยาลัย
             </h3>
             <p className="text-xs text-slate-500 mb-6">
-              แสดงการกระจายตัวของนักศึกษาชายและหญิงรายสถานศึกษา
+              แสดงการกระจายตัวของนักศึกษาชาย (สีเขียวมรกต) และหญิง (สีส้มแดงคอรัล) รายสถานศึกษา ตามหลัก Square Color Harmony
             </p>
           </div>
 
@@ -310,7 +310,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 3: Donut (สัดส่วน ชาย - หญิง ทั้งจังหวัด) */}
         <div className="lg:col-span-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-pink-600 mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#e11d48] mb-1">
               <PieChart className="w-4 h-4" />
               <span>Gender Ratio (Overall)</span>
             </div>
@@ -345,13 +345,19 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
           </div>
 
           <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
-            <div className="p-2 rounded-xl bg-sky-50 text-sky-950 font-semibold border border-sky-100">
-              <div>ชาย: {totalMale.toLocaleString()} คน</div>
-              <div className="text-[11px] text-[#0284c7] font-bold mt-0.5">{malePercent}%</div>
+            <div className="p-2.5 rounded-xl bg-emerald-50/80 text-emerald-950 font-semibold border border-emerald-200">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-900">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#059669]" />
+                <span>ชาย: {totalMale.toLocaleString()} คน</span>
+              </div>
+              <div className="text-[12px] text-[#059669] font-black mt-0.5">{malePercent}%</div>
             </div>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-950 font-semibold border border-purple-100">
-              <div>หญิง: {totalFemale.toLocaleString()} คน</div>
-              <div className="text-[11px] text-[#7c3aed] font-bold mt-0.5">{femalePercent}%</div>
+            <div className="p-2.5 rounded-xl bg-rose-50/80 text-rose-950 font-semibold border border-rose-200">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-rose-900">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#e11d48]" />
+                <span>หญิง: {totalFemale.toLocaleString()} คน</span>
+              </div>
+              <div className="text-[12px] text-[#e11d48] font-black mt-0.5">{femalePercent}%</div>
             </div>
           </div>
         </div>

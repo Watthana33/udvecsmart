@@ -19,6 +19,21 @@ import {
 } from 'lucide-react';
 import { updateInstitutionDirector } from '../../services/api';
 
+// Helper: แยกรายชื่อสาขาวิชาจาก JSON string หรือ array
+export const getProgramsArray = (raw: any): string[] => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map((s) => String(s).trim()).filter(Boolean);
+    } catch {
+      return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+};
+
 interface InstitutionListProps {
   institutions: Institution[];
   loading: boolean;
@@ -46,6 +61,9 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
   const [photoUrl, setPhotoUrl] = useState('');
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
+  const [programsCount, setProgramsCount] = useState<number>(12);
+  const [programsList, setProgramsList] = useState<string[]>([]);
+  const [programsUrl, setProgramsUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ title: string; desc: string; type: 'success' | 'error' } | null>(null);
 
@@ -57,6 +75,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
     photoUrl: string;
   } | null>(null);
 
+  // State สำหรับเปิด Popover รายชื่อสาขาบนมือถือ (หรือคลิก)
+  const [activeProgramsPopoverId, setActiveProgramsPopoverId] = useState<string | null>(null);
 
   const openEditModal = (inst: Institution) => {
     setEditingInst(inst);
@@ -66,10 +86,42 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
     setPhotoUrl(p?.photoUrl || '');
     setPhone(inst.phone || '');
     setWebsite(inst.website || '');
+    const count = inst.programsCount || 12;
+    setProgramsCount(count);
+    setProgramsUrl(inst.programsUrl || '');
+    const currentList = getProgramsArray(inst.programsList);
+    const initialArr = Array.from({ length: count }, (_, i) => currentList[i] || '');
+    setProgramsList(initialArr);
   };
 
   const closeEditModal = () => {
     setEditingInst(null);
+  };
+
+  // ปรับเปลี่ยนจำนวนสาขาวิชา -> ปรับจำนวนช่องกรอกอัตโนมัติ
+  const handleProgramsCountChange = (newCount: number) => {
+    const validCount = Math.max(1, Math.min(60, newCount));
+    setProgramsCount(validCount);
+    setProgramsList((prev) => {
+      const updated = [...prev];
+      if (validCount > updated.length) {
+        while (updated.length < validCount) {
+          updated.push('');
+        }
+      } else {
+        return updated.slice(0, validCount);
+      }
+      return updated;
+    });
+  };
+
+  // แก้ไขชื่อสาขาวิชาแต่ละช่อง
+  const handleProgramItemChange = (index: number, val: string) => {
+    setProgramsList((prev) => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
   };
 
   // บีบอัดและย่อขนาดภาพด้วย Canvas ก่อนแปลงเป็น Data URL
@@ -117,6 +169,9 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
         photoUrl,
         phone,
         website,
+        programsCount: Number(programsCount) || 12,
+        programsList: programsList.map((s) => s.trim()),
+        programsUrl: programsUrl.trim() || undefined,
       });
 
       setToastMsg({
@@ -142,6 +197,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
     }
   };
 
+
+
   const filtered = useMemo(() => {
     return institutions.filter((inst) => {
       const matchSearch =
@@ -162,8 +219,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="flex items-center gap-2 text-[#932d16] text-xs font-bold uppercase tracking-wider">
-            <School className="w-4 h-4" />
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
+            <School className="w-3.5 h-3.5" />
             <span>Institution Directory</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
@@ -400,10 +457,100 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                         <div />
                       )}
 
-                      <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded-lg text-xs font-medium">
-                        <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>เปิดสอน <strong className="text-[#932d16] font-bold">{inst.programsCount || 12}</strong> สาขาวิชา</span>
-                      </div>
+                      {/* Programs Badge with Interactive Hover Popover */}
+                      {(() => {
+                        const instPrograms = getProgramsArray(inst.programsList);
+                        const isPopoverOpen = activeProgramsPopoverId === inst.id;
+                        return (
+                          <div
+                            className="relative group/programs"
+                            onMouseLeave={() => {
+                              if (activeProgramsPopoverId === inst.id) setActiveProgramsPopoverId(null);
+                            }}
+                          >
+                            {inst.programsUrl ? (
+                              <a
+                                href={inst.programsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => {
+                                  // On touch screens, first tap toggles popover
+                                  if (window.innerWidth < 768 && !isPopoverOpen) {
+                                    e.preventDefault();
+                                    setActiveProgramsPopoverId(inst.id);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 hover:border-amber-300 px-2.5 py-1 rounded-lg text-xs font-medium transition-all shadow-xs cursor-pointer group-hover/programs:ring-2 group-hover/programs:ring-amber-400/40"
+                                title="คลิกเพื่อดูหลักสูตร หรือวางเม้าส์เพื่อดูรายชื่อสาขาวิชา"
+                              >
+                                <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>เปิดสอน <strong className="text-[#932d16] font-bold">{inst.programsCount || 12}</strong> สาขาวิชา</span>
+                                <ExternalLink className="w-3 h-3 text-amber-600 opacity-60 group-hover/programs:opacity-100 shrink-0" />
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setActiveProgramsPopoverId(isPopoverOpen ? null : inst.id)}
+                                className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer group-hover/programs:ring-2 group-hover/programs:ring-amber-400/40"
+                                title="ชี้หรือแตะเพื่อดูรายชื่อสาขาวิชา"
+                              >
+                                <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>เปิดสอน <strong className="text-[#932d16] font-bold">{inst.programsCount || 12}</strong> สาขาวิชา</span>
+                              </button>
+                            )}
+
+                            {/* Floating Hover & Tap Popover */}
+                            <div
+                              className={`transition-all duration-200 absolute right-0 bottom-full mb-2 w-72 sm:w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-amber-300/80 p-3.5 z-40 text-left pointer-events-auto ${
+                                isPopoverOpen
+                                  ? 'visible opacity-100 scale-100'
+                                  : 'invisible opacity-0 scale-95 group-hover/programs:visible group-hover/programs:opacity-100 group-hover/programs:scale-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-amber-100">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                  <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>สาขาวิชาที่เปิดสอน ({instPrograms.length > 0 ? instPrograms.length : (inst.programsCount || 12)} สาขา)</span>
+                                </div>
+                                <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-bold">
+                                  {inst.name.replace('วิทยาลัย', 'ว.')}
+                                </span>
+                              </div>
+
+                              {/* List of Programs */}
+                              {instPrograms.length > 0 ? (
+                                <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5 text-xs">
+                                  {instPrograms.map((prog, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 py-0.5 text-slate-700">
+                                      <span className="text-[10px] font-bold bg-amber-100 text-amber-900 rounded px-1.5 py-0.5 shrink-0 min-w-[20px] text-center mt-0.5">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="font-semibold text-slate-800 leading-snug">{prog}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="py-3 text-center text-xs text-slate-400">
+                                  ยังไม่ได้บันทึกรายชื่อสาขาวิชาแบบละเอียด
+                                </div>
+                              )}
+
+                              {/* Link to programsUrl */}
+                              {inst.programsUrl && (
+                                <a
+                                  href={inst.programsUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-[#932d16] hover:bg-[#7a2411] text-white text-[11px] font-bold rounded-xl shadow transition-colors"
+                                >
+                                  <span>ดูหลักสูตรและสาขาวิชาทั้งหมด</span>
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -467,7 +614,7 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
       {/* Modal: อัปโหลด/แก้ไขภาพถ่ายและข้อมูลผู้บริหาร */}
       {editingInst && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 overflow-hidden relative">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto relative">
             <button
               onClick={closeEditModal}
               className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -544,6 +691,7 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                 </div>
               </div>
 
+              {/* Phone, Website & Programs Count */}
               {/* Phone & Website */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
                 <div className="space-y-1">
@@ -565,6 +713,70 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                     placeholder="https://..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   />
+                </div>
+              </div>
+
+              {/* Programs Count, Curriculum URL & Dynamic Program Inputs */}
+              <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-3.5 text-left">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-700" />
+                      <span>จำนวนสาขาวิชาที่เปิดสอน (สาขา)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      required
+                      value={programsCount}
+                      onChange={(e) => handleProgramsCountChange(Number(e.target.value))}
+                      placeholder="เช่น 12"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <ExternalLink className="w-3.5 h-3.5 text-amber-700" />
+                      <span>ลิงก์ดูหลักสูตร/สาขาวิชาทั้งหมด (URL)</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={programsUrl}
+                      onChange={(e) => setProgramsUrl(e.target.value)}
+                      placeholder="https://technicudon.ac.th/curriculum"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Dynamic Program Inputs based on programsCount */}
+                <div className="pt-2 border-t border-amber-200/60">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-slate-800">
+                      รายชื่อสาขาวิชาที่เปิดสอน ({programsList.length} สาขา):
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      * ช่องจะปรับเพิ่ม/ลดตามจำนวนสาขาที่กรอกด้านบน
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                    {programsList.map((prog, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-400 w-6 text-right shrink-0">
+                          {idx + 1}.
+                        </span>
+                        <input
+                          type="text"
+                          value={prog}
+                          onChange={(e) => handleProgramItemChange(idx, e.target.value)}
+                          placeholder={`สาขาวิชาที่ ${idx + 1} เช่น ช่างยนต์`}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 

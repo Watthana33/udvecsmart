@@ -1,0 +1,12 @@
+{
+  "name": "udpvecsmart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UDVECSmart - ระบบสารสนเทศสำนักงานอาชีวศึกษาจังหวัดอุดรธานี",
+  "scripts": {
+    "start": "start-dev.bat",
+    "dev": "start-dev.bat",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  }
+}

@@ -8,15 +8,21 @@ import { StatCards } from './components/dashboard/StatCards';
 import { OverviewCharts } from './components/dashboard/OverviewCharts';
 import { InstitutionList } from './components/dashboard/InstitutionList';
 import { EmploymentSection } from './components/dashboard/EmploymentSection';
+import { EmploymentHero } from './components/dashboard/EmploymentHero';
+import { DveCareerSection } from './components/dashboard/DveCareerSection';
+import { DveCareerHero } from './components/dashboard/DveCareerHero';
 import { ContactSection } from './components/dashboard/ContactSection';
 import { AdminPortal } from './components/portal/AdminPortal';
 import { LoginModal } from './components/auth/LoginModal';
+import { FloatingPortalButton } from './components/layout/FloatingPortalButton';
+
 import {
   getStatsOverview,
   getStatsByInstitution,
   getInstitutions,
   getNewsList,
   getMe,
+  getAcademicPeriods,
 } from './services/api';
 import {
   StatsOverview,
@@ -24,6 +30,7 @@ import {
   NewsItem,
   UserProfile,
   InstitutionStatItem,
+  AcademicPeriodItem,
 } from './types';
 
 export function App() {
@@ -31,10 +38,14 @@ export function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('overview');
 
+  // Academic Periods State
+  const [academicPeriods, setAcademicPeriods] = useState<AcademicPeriodItem[]>([]);
+
   // Filter State (Reactive Filters)
   const [selectedYear, setSelectedYear] = useState<number>(2568);
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('ALL');
+
 
   // Data States
   const [stats, setStats] = useState<StatsOverview | null>(null);
@@ -60,6 +71,35 @@ export function App() {
     }
   }, []);
 
+  // ดึงข้อมูลรอบปีการศึกษาและตั้งค่าเริ่มต้นตามรอบปัจจุบันที่แอดมินตั้งไว้
+  const loadAcademicPeriods = useCallback(async () => {
+    try {
+      const data = await getAcademicPeriods();
+      if (Array.isArray(data) && data.length > 0) {
+        setAcademicPeriods(data);
+        const curr = data.find((p) => p.isCurrent) || data[0];
+        if (curr) {
+          setSelectedYear(curr.year);
+          setSelectedSemester(curr.semester);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load academic periods:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAcademicPeriods();
+  }, [loadAcademicPeriods]);
+
+  // รีเฟรชรอบปีการศึกษาเมื่อสลับกลับมาที่หน้าภาพรวมหรือการมีงานทำ เพื่อซิงค์กับที่แอดมินตั้งค่าเสมอ
+  useEffect(() => {
+    if (activeTab === 'overview' || activeTab === 'employment' || activeTab === 'dve_career') {
+      loadAcademicPeriods();
+    }
+  }, [activeTab, loadAcademicPeriods]);
+
+
   // Fetch Institutions & News on initial load
   useEffect(() => {
     getInstitutions()
@@ -73,12 +113,13 @@ export function App() {
       .finally(() => setLoadingNews(false));
   }, []);
 
+
   // Fetch Stats dynamically whenever filters change (Year, Semester, or Selected Institution)
-  const loadStats = useCallback(() => {
+  const loadStats = useCallback((year = selectedYear, semester = selectedSemester, instId = selectedInstitutionId) => {
     setLoadingStats(true);
     Promise.all([
-      getStatsOverview(selectedYear, selectedSemester, selectedInstitutionId),
-      getStatsByInstitution(selectedYear, selectedSemester),
+      getStatsOverview(year, semester, instId),
+      getStatsByInstitution(year, semester),
     ])
       .then(([overviewData, instStatsData]) => {
         setStats(overviewData);
@@ -87,6 +128,14 @@ export function App() {
       .catch((err) => console.error('Failed to load statistics:', err))
       .finally(() => setLoadingStats(false));
   }, [selectedYear, selectedSemester, selectedInstitutionId]);
+
+  const handleRefreshStats = (year?: number, semester?: number) => {
+    const targetYear = year || selectedYear;
+    const targetSemester = semester || selectedSemester;
+    if (year && year !== selectedYear) setSelectedYear(year);
+    if (semester && semester !== selectedSemester) setSelectedSemester(semester);
+    loadStats(targetYear, targetSemester, selectedInstitutionId);
+  };
 
   useEffect(() => {
     loadStats();
@@ -104,8 +153,13 @@ export function App() {
     setSelectedInstitutionId(id);
     setActiveTab('overview');
     setTimeout(() => {
-      document.getElementById('main-tab-content')?.scrollIntoView({ behavior: 'smooth' });
-    }, 60);
+      const element = document.getElementById('main-tab-content');
+      if (element) {
+        const yOffset = -90;
+        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }
+    }, 80);
   };
 
   // เฉพาะ Super Admin (สอจ.อุดรธานี) เท่านั้นที่มีสิทธิ์เปลี่ยนภาพแบนเนอร์
@@ -140,6 +194,7 @@ export function App() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <FilterBar
                 institutions={institutions}
+                academicPeriods={academicPeriods}
                 selectedYear={selectedYear}
                 setSelectedYear={setSelectedYear}
                 selectedSemester={selectedSemester}
@@ -158,8 +213,35 @@ export function App() {
           </div>
         )}
 
+        {/* Tab: ทวิภาคี & ห้องเรียนอาชีพ (Dual Vocational Education & Career Classrooms) */}
+        {activeTab === 'dve_career' && (
+          <div className="space-y-6">
+            <DveCareerHero />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <FilterBar
+                institutions={institutions}
+                academicPeriods={academicPeriods}
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
+                selectedSemester={selectedSemester}
+                setSelectedSemester={setSelectedSemester}
+                selectedInstitutionId={selectedInstitutionId}
+                setSelectedInstitutionId={setSelectedInstitutionId}
+              />
+            </div>
+
+            <DveCareerSection
+              selectedYear={selectedYear}
+              selectedSemester={selectedSemester}
+              selectedInstitutionId={selectedInstitutionId}
+            />
+          </div>
+        )}
+
         {/* Tab 2: สถานศึกษาในสังกัด (Affiliated Institutions Directory - 29 Colleges) */}
         {activeTab === 'institutions' && (
+
           <InstitutionList
             institutions={institutions}
             loading={loadingInstitutions}
@@ -175,10 +257,15 @@ export function App() {
         {/* Tab 3: ข้อมูลผู้สำเร็จการศึกษาและภาวะการมีงานทำ (Graduates & Employment) */}
         {activeTab === 'employment' && (
           <div className="space-y-6">
-            {/* Horizontal Filter Bar also displayed in Employment tab as requested */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <EmploymentHero
+              academicYear={stats?.academicYear}
+              semester={stats?.semester}
+            />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <FilterBar
                 institutions={institutions}
+                academicPeriods={academicPeriods}
                 selectedYear={selectedYear}
                 setSelectedYear={setSelectedYear}
                 selectedSemester={selectedSemester}
@@ -201,14 +288,26 @@ export function App() {
 
         {/* Tab Portal: ระบบจัดการข้อมูล / ศูนย์ควบคุม สอจ. / บันทึกข้อมูลสถิติ */}
         {activeTab === 'portal' && user && (
-          <AdminPortal user={user} onRefreshStats={loadStats} />
+          <AdminPortal
+            user={user}
+            onRefreshStats={handleRefreshStats}
+            onAcademicPeriodsChange={loadAcademicPeriods}
+          />
         )}
+
       </main>
 
       {/* 3. Footer with #932d16 theme */}
       <Footer />
 
-      {/* 4. Login Modal */}
+      {/* 4. Floating Action Button for Logged in Admin (follows screen on right) */}
+      <FloatingPortalButton
+        user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+
+      {/* 5. Login Modal */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
@@ -216,8 +315,13 @@ export function App() {
           setUser(loggedUser);
           setActiveTab('portal');
           setTimeout(() => {
-            document.getElementById('main-tab-content')?.scrollIntoView({ behavior: 'smooth' });
-          }, 60);
+            const element = document.getElementById('main-tab-content');
+            if (element) {
+              const yOffset = -90;
+              const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+              window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+            }
+          }, 80);
         }}
       />
     </div>

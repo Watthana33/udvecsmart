@@ -16,7 +16,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
 }) => {
   if (loading || !stats) {
     return (
-      <div className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-40 bg-slate-200/80 rounded-2xl" />
@@ -102,95 +102,186 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
     ],
   };
 
-  return (
-    <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-      
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 text-[#932d16] text-xs font-bold uppercase tracking-wider">
-          <Briefcase className="w-4 h-4" />
-          <span>Graduates & Employment Report</span>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
-          ข้อมูลผู้สำเร็จการศึกษาและภาวะการมีงานทำ
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          ปีการศึกษา {stats.academicYear} ภาคเรียนที่ {stats.semester} (จำแนกตามสายอาชีพและหน่วยงานที่เข้าปฏิบัติงาน)
-        </p>
-      </div>
+  // Calculation for graduation and employment indicators
+  const vocCert3Count = stats.students.byGrade?.vocCert3 || 0;
+  const vocGradRate = vocCert3Count > 0
+    ? Math.min(100, Math.round((graduatesEmployment.gradVocCert / vocCert3Count) * 100))
+    : stats.students.vocCert > 0
+    ? Math.min(100, Math.round((graduatesEmployment.gradVocCert / (stats.students.vocCert / 3)) * 100))
+    : 0;
 
-      {/* 4 Cards Requested by User */}
+  const highVocCert2Count = stats.students.byGrade?.highVocCert2 || 0;
+  const highVocGradRate = highVocCert2Count > 0
+    ? Math.min(100, Math.round((graduatesEmployment.gradHighVocCert / highVocCert2Count) * 100))
+    : stats.students.highVocCert > 0
+    ? Math.min(100, Math.round((graduatesEmployment.gradHighVocCert / (stats.students.highVocCert / 2)) * 100))
+    : 0;
+
+  const totalGrad = graduatesEmployment.totalGraduates || 1;
+  const employedRate = Math.round((graduatesEmployment.employed / totalGrad) * 100);
+  const furtherStudyRate = Math.round((graduatesEmployment.furtherStudy / totalGrad) * 100);
+  const otherRate = Math.max(0, 100 - employedRate - furtherStudyRate);
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6">
+      {/* 4 Cards with Unified Design System & Percentage Sub-Indicators */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
-        {/* Card 1: ยอดนักเรียน ปวช. ปัจจุบัน */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">ปวช. ปัจจุบัน</span>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <GraduationCap className="w-5 h-5" />
+        {/* Card 1: ปวช. ปัจจุบัน + % การสำเร็จการศึกษา ปวช. */}
+        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(37,99,235,0.2)] border border-slate-200/90 hover:border-blue-400/40 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                ปวช. ปัจจุบัน
+              </span>
+              <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100/80 text-blue-600 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
+                <GraduationCap className="w-5 h-5 stroke-[1.8]" />
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {students.vocCert.toLocaleString()}
+              </span>
+              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
+                คน
+              </span>
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            {students.vocCert.toLocaleString()}{' '}
-            <span className="text-xs font-medium text-slate-500">คน</span>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
-            <span>กำลังศึกษาอยู่</span>
-            <span className="font-semibold text-blue-600">ระดับประกาศนียบัตรวิชาชีพ</span>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">สำเร็จการศึกษา ปวช.</span>
+              <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg text-[11px] border border-blue-100">
+                {vocGradRate}% ({graduatesEmployment.gradVocCert.toLocaleString()} คน)
+              </span>
+            </div>
+
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
+              <div style={{ width: `${vocGradRate}%` }} className="bg-blue-600 h-full rounded-full" title={`สำเร็จการศึกษา ${vocGradRate}%`} />
+            </div>
           </div>
         </div>
 
-        {/* Card 2: ยอดนักเรียน ปวส. ปัจจุบัน */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">ปวส. ปัจจุบัน</span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <GraduationCap className="w-5 h-5" />
+        {/* Card 2: ปวส. ปัจจุบัน + % การสำเร็จการศึกษา ปวส. */}
+        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(16,185,129,0.2)] border border-slate-200/90 hover:border-emerald-400/40 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                ปวส. ปัจจุบัน
+              </span>
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
+                <GraduationCap className="w-5 h-5 stroke-[1.8]" />
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {students.highVocCert.toLocaleString()}
+              </span>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                คน
+              </span>
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            {students.highVocCert.toLocaleString()}{' '}
-            <span className="text-xs font-medium text-slate-500">คน</span>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
-            <span>กำลังศึกษาอยู่</span>
-            <span className="font-semibold text-emerald-600">ประกาศนียบัตรวิชาชีพชั้นสูง</span>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">สำเร็จการศึกษา ปวส.</span>
+              <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg text-[11px] border border-emerald-100">
+                {highVocGradRate}% ({graduatesEmployment.gradHighVocCert.toLocaleString()} คน)
+              </span>
+            </div>
+
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
+              <div style={{ width: `${highVocGradRate}%` }} className="bg-emerald-600 h-full rounded-full" title={`สำเร็จการศึกษา ${highVocGradRate}%`} />
+            </div>
           </div>
         </div>
 
-        {/* Card 3: ยอดนักเรียน ปวช. สำเร็จการศึกษา */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">ปวช. สำเร็จการศึกษา</span>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
+        {/* Card 3: ปวช. สำเร็จการศึกษา + % มีงานทำ และ % ศึกษาต่อ */}
+        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(245,158,11,0.2)] border border-slate-200/90 hover:border-amber-400/40 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                ปวช. สำเร็จการศึกษา
+              </span>
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-100/80 text-amber-700 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
+                <CheckCircle2 className="w-5 h-5 stroke-[1.8]" />
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {graduatesEmployment.gradVocCert.toLocaleString()}
+              </span>
+              <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                คน
+              </span>
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            {graduatesEmployment.gradVocCert.toLocaleString()}{' '}
-            <span className="text-xs font-medium text-slate-500">คน</span>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
-            <span>สำเร็จการศึกษา</span>
-            <span className="font-semibold text-amber-600">ประจำปีการศึกษา</span>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-1.5 bg-emerald-50/70 px-2 py-1 rounded-xl border border-emerald-100/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-slate-600 text-[11px] truncate">มีงานทำ: <strong className="text-emerald-700">{employedRate}%</strong></span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-indigo-50/70 px-2 py-1 rounded-xl border border-indigo-100/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                <span className="text-slate-600 text-[11px] truncate">ศึกษาต่อ: <strong className="text-indigo-700">{furtherStudyRate}%</strong></span>
+              </div>
+            </div>
+
+            {/* Subtle ratio bar */}
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
+              <div style={{ width: `${employedRate}%` }} className="bg-emerald-500 h-full" title={`มีงานทำ ${employedRate}%`} />
+              <div style={{ width: `${furtherStudyRate}%` }} className="bg-indigo-500 h-full" title={`ศึกษาต่อ ${furtherStudyRate}%`} />
+              <div style={{ width: `${otherRate}%` }} className="bg-slate-300 h-full" title={`อื่นๆ/ว่างงาน ${otherRate}%`} />
+            </div>
           </div>
         </div>
 
-        {/* Card 4: ยอดนักเรียน ปวส. สำเร็จการศึกษา */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">ปวส. สำเร็จการศึกษา</span>
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
+        {/* Card 4: ปวส. สำเร็จการศึกษา + % มีงานทำ และ % ศึกษาต่อ */}
+        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(147,51,234,0.2)] border border-slate-200/90 hover:border-purple-400/40 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                ปวส. สำเร็จการศึกษา
+              </span>
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100/80 text-purple-700 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
+                <CheckCircle2 className="w-5 h-5 stroke-[1.8]" />
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                {graduatesEmployment.gradHighVocCert.toLocaleString()}
+              </span>
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200/60">
+                คน
+              </span>
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            {graduatesEmployment.gradHighVocCert.toLocaleString()}{' '}
-            <span className="text-xs font-medium text-slate-500">คน</span>
-          </div>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
-            <span>สำเร็จการศึกษา</span>
-            <span className="font-semibold text-purple-600">พร้อมเข้าสู่ตลาดแรงงาน</span>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-1.5 bg-emerald-50/70 px-2 py-1 rounded-xl border border-emerald-100/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-slate-600 text-[11px] truncate">มีงานทำ: <strong className="text-emerald-700">{employedRate}%</strong></span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-purple-50/70 px-2 py-1 rounded-xl border border-purple-100/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                <span className="text-slate-600 text-[11px] truncate">ศึกษาต่อ: <strong className="text-purple-700">{furtherStudyRate}%</strong></span>
+              </div>
+            </div>
+
+            {/* Subtle ratio bar */}
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
+              <div style={{ width: `${employedRate}%` }} className="bg-emerald-500 h-full" title={`มีงานทำ ${employedRate}%`} />
+              <div style={{ width: `${furtherStudyRate}%` }} className="bg-purple-500 h-full" title={`ศึกษาต่อ ${furtherStudyRate}%`} />
+              <div style={{ width: `${otherRate}%` }} className="bg-slate-300 h-full" title={`อื่นๆ/ว่างงาน ${otherRate}%`} />
+            </div>
           </div>
         </div>
 

@@ -39,6 +39,8 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         address: true,
         province: true,
         programsCount: true,
+        programsList: true,
+        programsUrl: true,
         personnels: {
           select: {
             id: true,
@@ -144,7 +146,7 @@ export async function updateInstitutionDirector(req: AuthRequest, res: Response)
       return;
     }
 
-    const { directorName, position, photoUrl, phone, website, address, programsCount } = req.body;
+    const { directorName, position, photoUrl, phone, website, address, programsCount, programsList, programsUrl } = req.body;
 
     // 1. อัปเดตข้อมูลสถานศึกษา
     const updatedInst = await prisma.institution.update({
@@ -154,6 +156,8 @@ export async function updateInstitutionDirector(req: AuthRequest, res: Response)
         ...(website !== undefined ? { website } : {}),
         ...(address !== undefined ? { address } : {}),
         ...(programsCount !== undefined ? { programsCount: Number(programsCount) } : {}),
+        ...(programsList !== undefined ? { programsList: typeof programsList === 'string' ? programsList : JSON.stringify(programsList) } : {}),
+        ...(programsUrl !== undefined ? { programsUrl: programsUrl } : {}),
       },
     });
 
@@ -222,7 +226,7 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const { code, name, type, directorName, phone, website, address, programsCount } = req.body;
+    const { code, name, type, directorName, phone, website, address, programsCount, programsList, programsUrl } = req.body;
 
     if (!code || !name) {
       res.status(400).json({
@@ -250,6 +254,8 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
         website: website || null,
         address: address || null,
         programsCount: Number(programsCount) || 10,
+        programsList: programsList ? (typeof programsList === 'string' ? programsList : JSON.stringify(programsList)) : null,
+        programsUrl: programsUrl || null,
         personnels: {
           create: {
             name: directorName || 'ผู้อำนวยการวิทยาลัย',
@@ -277,4 +283,95 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
     });
   }
 }
+
+/**
+ * ลบสถานศึกษา (สำหรับ SUPER_ADMIN)
+ * DELETE /api/institutions/:id
+ */
+export async function deleteInstitution(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (req.user?.role !== Role.SUPER_ADMIN) {
+      res.status(403).json({
+        status: 'error',
+        message: 'มีเพียงผู้ดูแลระบบ สอจ. เท่านั้นที่มีสิทธิ์ลบสถานศึกษา',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    const existing = await prisma.institution.findUnique({
+      where: { id },
+      select: { id: true, name: true, code: true },
+    });
+
+    if (!existing) {
+      res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลสถานศึกษาที่ต้องการลบ',
+      });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. ลบโรงเรียนเครือข่ายห้องเรียนอาชีพของสถานศึกษานี้
+      const careerClassrooms = await tx.careerClassroom.findMany({
+        where: { institutionId: id },
+        select: { id: true },
+      });
+      const careerIds = careerClassrooms.map((c) => c.id);
+      if (careerIds.length > 0) {
+        await tx.careerPartnerSchool.deleteMany({
+          where: { careerClassroomId: { in: careerIds } },
+        });
+      }
+
+      // 2. ลบห้องเรียนอาชีพ
+      await tx.careerClassroom.deleteMany({
+        where: { institutionId: id },
+      });
+
+      // 3. ลบข้อมูลทวิภาคีรายแผนก
+      await tx.dveDepartment.deleteMany({
+        where: { institutionId: id },
+      });
+
+      // 4. ลบข้อมูลสถิติประจำปี
+      await tx.schoolStat.deleteMany({
+        where: { institutionId: id },
+      });
+
+      // 5. ลบข้อมูลบุคลากร/ผู้บริหาร
+      await tx.personnel.deleteMany({
+        where: { institutionId: id },
+      });
+
+      // 6. ลบผู้ใช้งานระดับสถานศึกษา (SCHOOL_ADMIN) ที่สังกัดสถานศึกษานี้
+      await tx.user.deleteMany({
+        where: {
+          institutionId: id,
+          role: Role.SCHOOL_ADMIN,
+        },
+      });
+
+      // 7. ลบข้อมูลสถานศึกษา
+      await tx.institution.delete({
+        where: { id },
+      });
+    });
+
+    res.json({
+      status: 'success',
+      message: `ลบสถานศึกษา "${existing.name}" (${existing.code}) เรียบร้อยแล้ว`,
+    });
+  } catch (error: any) {
+    console.error('deleteInstitution error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบสถานศึกษาได้',
+      detail: error.message,
+    });
+  }
+}
+
 

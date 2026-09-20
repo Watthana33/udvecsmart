@@ -585,18 +585,56 @@ async function main() {
   }
   console.log(`✅ Seeded all ${count} institutions with directors and detailed statistics!`);
 
-  // 4. สร้าง Super Admin
+  // 4. สร้าง Super Admin และ School Admins เริ่มต้น
+  const superAdminPasswordHash = await bcrypt.hash('@dmin1234', salt);
+  const schoolAdminPasswordHash = await bcrypt.hash('admin1234', salt);
+
   const superAdmin = await prisma.user.upsert({
     where: { email: 'admin@udpvec.go.th' },
-    update: {},
+    update: {
+      passwordHash: superAdminPasswordHash,
+    },
     create: {
       email: 'admin@udpvec.go.th',
-      passwordHash: defaultPasswordHash,
+      passwordHash: superAdminPasswordHash,
       fullName: 'ผู้ดูแลระบบ สอจ.อุดรธานี',
       role: Role.SUPER_ADMIN,
     },
   });
   console.log(`✅ Super Admin ready: ${superAdmin.email}`);
+
+  // บัญชีผู้ดูแลระบบวิทยาลัยเทคนิคอุดรธานี (เริ่มต้น)
+  const udtcInst = await prisma.institution.findUnique({ where: { code: '13410101' } });
+  if (udtcInst) {
+    await prisma.user.upsert({
+      where: { email: 'admin.udtc@udpvec.go.th' },
+      update: {},
+      create: {
+        email: 'admin.udtc@udpvec.go.th',
+        passwordHash: schoolAdminPasswordHash,
+        fullName: 'เจ้าหน้าที่ข้อมูล วท.อุดรธานี',
+        role: Role.SCHOOL_ADMIN,
+        institutionId: udtcInst.id,
+      },
+    });
+  }
+
+  // บัญชีผู้ดูแลระบบวิทยาลัยอาชีวศึกษาอุดรธานี (เริ่มต้น)
+  const udvcInst = await prisma.institution.findUnique({ where: { code: '13410102' } });
+  if (udvcInst) {
+    await prisma.user.upsert({
+      where: { email: 'admin.udvc@udpvec.go.th' },
+      update: {},
+      create: {
+        email: 'admin.udvc@udpvec.go.th',
+        passwordHash: schoolAdminPasswordHash,
+        fullName: 'เจ้าหน้าที่ข้อมูล วอศ.อุดรธานี',
+        role: Role.SCHOOL_ADMIN,
+        institutionId: udvcInst.id,
+      },
+    });
+  }
+  console.log('✅ School Admins ready (admin.udtc and admin.udvc)');
 
   // 5. ปรับค่าการตั้งค่าระบบ (UDVECSmart & Year 2568)
   const settings = [

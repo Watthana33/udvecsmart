@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Upload, RefreshCw, X, Sparkles, Check } from 'lucide-react';
+import { Camera, Upload, RefreshCw, X, Check } from 'lucide-react';
 
 interface BannerSectionProps {
   isAdmin?: boolean;
@@ -140,7 +140,7 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ isAdmin = false })
 
             {/* Smart Feature Notice */}
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-900">
-              <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <Check className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <div>
                 <span className="font-bold">ฟีเจอร์ปรับขนาดพอดีอัตโนมัติ (Auto Aspect Ratio):</span>
                 <p className="mt-0.5 text-amber-800 leading-relaxed">

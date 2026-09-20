@@ -290,6 +290,8 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
           code: true,
           type: true,
           programsCount: true,
+          programsList: true,
+          programsUrl: true,
           phone: true,
           website: true,
           address: true,
@@ -305,9 +307,13 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
             in: [
               'is_data_submission_open',
               'allow_section_general',
+              'allow_section_teachers',
               'allow_section_grades',
+              'allow_section_dve',
+              'allow_section_career',
               'allow_section_graduates',
               'glow_section',
+              'allow_school_export',
             ],
           },
         },
@@ -321,18 +327,26 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
 
     const isSubmissionOpen = settingsMap['is_data_submission_open'] !== 'false';
     const allowSectionGeneral = settingsMap['allow_section_general'] !== 'false';
+    const allowSectionTeachers = settingsMap['allow_section_teachers'] !== 'false';
     const allowSectionGrades = settingsMap['allow_section_grades'] !== 'false';
+    const allowSectionDve = settingsMap['allow_section_dve'] !== 'false';
+    const allowSectionCareer = settingsMap['allow_section_career'] !== 'false';
     const allowSectionGraduates = settingsMap['allow_section_graduates'] !== 'false';
     const glowSection = settingsMap['glow_section'] || 'none';
+    const allowSchoolExport = settingsMap['allow_school_export'] === 'true';
 
     res.json({
       status: 'success',
       isSubmissionOpen,
       permissions: {
         allowSectionGeneral,
+        allowSectionTeachers,
         allowSectionGrades,
+        allowSectionDve,
+        allowSectionCareer,
         allowSectionGraduates,
         glowSection,
+        allowSchoolExport,
       },
       institution,
       academicYear,
@@ -386,9 +400,8 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     const academicYear = Number(body.academicYear) || 2568;
     const semester = Number(body.semester) || 1;
 
-    const maleStudents = Number(body.maleStudents) || 0;
-    const femaleStudents = Number(body.femaleStudents) || 0;
-    const totalStudents = maleStudents + femaleStudents;
+    let maleStudents = Number(body.maleStudents) || 0;
+    let femaleStudents = Number(body.femaleStudents) || 0;
 
     const vocCert1 = Number(body.vocCert1) || 0;
     const vocCert2 = Number(body.vocCert2) || 0;
@@ -399,9 +412,30 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
 
     const vocCertCount = vocCert1 + vocCert2 + vocCert3;
     const highVocCertCount = highVocCert1 + highVocCert2;
+    const sumByGrades = vocCertCount + highVocCertCount + bachelorCount;
+
+    // Auto-correlate totalStudents, maleStudents, and femaleStudents
+    let totalStudents = maleStudents + femaleStudents;
+    if (totalStudents === 0 && sumByGrades > 0) {
+      totalStudents = sumByGrades;
+      maleStudents = Math.ceil(sumByGrades / 2);
+      femaleStudents = sumByGrades - maleStudents;
+    } else if (sumByGrades > 0) {
+      totalStudents = sumByGrades;
+      if (maleStudents + femaleStudents === 0) {
+        maleStudents = Math.ceil(sumByGrades / 2);
+        femaleStudents = sumByGrades - maleStudents;
+      }
+    }
+
+    const maleTeachers = Number(body.maleTeachers) || 0;
+    const femaleTeachers = Number(body.femaleTeachers) || 0;
+    let totalTeachers = Number(body.totalTeachers) || 0;
+    if (totalTeachers === 0 && (maleTeachers + femaleTeachers) > 0) {
+      totalTeachers = maleTeachers + femaleTeachers;
+    }
 
     const totalExecutives = Number(body.totalExecutives) || 1;
-    const totalTeachers = Number(body.totalTeachers) || 0;
     const totalStaff = Number(body.totalStaff) || 0;
 
     const gradVocCertCount = Number(body.gradVocCertCount) || 0;
@@ -418,6 +452,31 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     const workGov = Number(body.workGov) || 0;
     const workPrivate = Number(body.workPrivate) || 0;
     const workSelf = Number(body.workSelf) || 0;
+
+    // กลุ่ม 2: สถิตินักเรียนศึกษาต่อ แต่ยังไม่สำเร็จการศึกษา
+    const pendingGradM3 = Number(body.pendingGradM3) || 0;
+    const pendingGradM6 = Number(body.pendingGradM6) || 0;
+    const pendingGradVoc3 = Number(body.pendingGradVoc3) || 0;
+
+    // กลุ่ม 3: ข้อมูลสารสนเทศด้านการจัดการอาชีวศึกษา
+    const dveStudentsCount = Number(body.dveStudentsCount) || 0;
+    const dualStudyCount = Number(body.dualStudyCount) || 0;
+    const dualDegreeCount = Number(body.dualDegreeCount) || 0;
+    const fttAssessment = Boolean(body.fttAssessment);
+
+    // กลุ่ม 4: ข้อมูลบุคลากรทางการศึกษา จำแนกเพศและวุฒิการศึกษา
+    const degreeAssociateMale = Number(body.degreeAssociateMale) || 0;
+    const degreeAssociateFemale = Number(body.degreeAssociateFemale) || 0;
+    const degreeBachelorMale = Number(body.degreeBachelorMale) || 0;
+    const degreeBachelorFemale = Number(body.degreeBachelorFemale) || 0;
+    const degreeMasterMale = Number(body.degreeMasterMale) || 0;
+    const degreeMasterFemale = Number(body.degreeMasterFemale) || 0;
+    const degreeDoctorMale = Number(body.degreeDoctorMale) || 0;
+    const degreeDoctorFemale = Number(body.degreeDoctorFemale) || 0;
+    const civilTeachersMale = Number(body.civilTeachersMale) || 0;
+    const civilTeachersFemale = Number(body.civilTeachersFemale) || 0;
+    const hiredTeachersMale = Number(body.hiredTeachersMale) || 0;
+    const hiredTeachersFemale = Number(body.hiredTeachersFemale) || 0;
 
     const stat = await prisma.schoolStat.upsert({
       where: {
@@ -442,6 +501,27 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         totalExecutives,
         totalTeachers,
         totalStaff,
+        pendingGradM3,
+        pendingGradM6,
+        pendingGradVoc3,
+        dveStudentsCount,
+        dualStudyCount,
+        dualDegreeCount,
+        fttAssessment,
+        maleTeachers,
+        femaleTeachers,
+        degreeAssociateMale,
+        degreeAssociateFemale,
+        degreeBachelorMale,
+        degreeBachelorFemale,
+        degreeMasterMale,
+        degreeMasterFemale,
+        degreeDoctorMale,
+        degreeDoctorFemale,
+        civilTeachersMale,
+        civilTeachersFemale,
+        hiredTeachersMale,
+        hiredTeachersFemale,
         gradVocCertCount,
         gradHighVocCertCount,
         employedGraduatesCount,
@@ -472,6 +552,27 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         totalExecutives,
         totalTeachers,
         totalStaff,
+        pendingGradM3,
+        pendingGradM6,
+        pendingGradVoc3,
+        dveStudentsCount,
+        dualStudyCount,
+        dualDegreeCount,
+        fttAssessment,
+        maleTeachers,
+        femaleTeachers,
+        degreeAssociateMale,
+        degreeAssociateFemale,
+        degreeBachelorMale,
+        degreeBachelorFemale,
+        degreeMasterMale,
+        degreeMasterFemale,
+        degreeDoctorMale,
+        degreeDoctorFemale,
+        civilTeachersMale,
+        civilTeachersFemale,
+        hiredTeachersMale,
+        hiredTeachersFemale,
         gradVocCertCount,
         gradHighVocCertCount,
         employedGraduatesCount,
@@ -486,14 +587,18 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
       },
     });
 
+
     // หากมีการส่งข้อมูลผู้บริหาร หรือข้อมูลติดต่อสถานศึกษามาด้วย ให้อัปเดตไปพร้อมกัน
-    if (body.directorName || body.photoUrl !== undefined || body.phone || body.website || body.address) {
+    if (body.directorName || body.photoUrl !== undefined || body.phone || body.website || body.address || body.programsCount !== undefined || body.programsList !== undefined || body.programsUrl !== undefined) {
       await prisma.institution.update({
         where: { id: targetInstitutionId },
         data: {
           ...(body.phone !== undefined ? { phone: body.phone } : {}),
           ...(body.website !== undefined ? { website: body.website } : {}),
           ...(body.address !== undefined ? { address: body.address } : {}),
+          ...(body.programsCount !== undefined ? { programsCount: Number(body.programsCount) } : {}),
+          ...(body.programsList !== undefined ? { programsList: typeof body.programsList === 'string' ? body.programsList : JSON.stringify(body.programsList) } : {}),
+          ...(body.programsUrl !== undefined ? { programsUrl: body.programsUrl } : {}),
         },
       });
 
@@ -580,10 +685,39 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
           updatedAt: true,
         },
       }),
-      prisma.siteSetting.findUnique({
-        where: { key: 'is_data_submission_open' },
+      prisma.siteSetting.findMany({
+        where: {
+          key: {
+            in: [
+              'is_data_submission_open',
+              'allow_section_general',
+              'allow_section_grades',
+              'allow_section_graduates',
+              'allow_section_teachers',
+              'allow_section_dve',
+              'allow_section_career',
+              'glow_section',
+              'allow_school_export',
+            ],
+          },
+        },
       }),
     ]);
+
+    const settingsMap: Record<string, string> = {};
+    submissionSetting.forEach((s) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    const isSubmissionOpen = settingsMap['is_data_submission_open'] !== 'false';
+    const allowSchoolExport = settingsMap['allow_school_export'] === 'true';
+    const allowSectionGeneral = settingsMap['allow_section_general'] !== 'false';
+    const allowSectionGrades = settingsMap['allow_section_grades'] !== 'false';
+    const allowSectionGraduates = settingsMap['allow_section_graduates'] !== 'false';
+    const allowSectionTeachers = settingsMap['allow_section_teachers'] !== 'false';
+    const allowSectionDve = settingsMap['allow_section_dve'] !== 'false';
+    const allowSectionCareer = settingsMap['allow_section_career'] !== 'false';
+    const glowSection = settingsMap['glow_section'] || 'none';
 
     const statMap = new Map(stats.map((s) => [s.institutionId, s]));
 
@@ -616,7 +750,17 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
       status: 'success',
       academicYear,
       semester,
-      isSubmissionOpen: submissionSetting ? submissionSetting.value === 'true' : true,
+      isSubmissionOpen,
+      permissions: {
+        allowSectionGeneral,
+        allowSectionGrades,
+        allowSectionGraduates,
+        allowSectionTeachers,
+        allowSectionDve,
+        allowSectionCareer,
+        glowSection,
+        allowSchoolExport,
+      },
       totalInstitutions: institutions.length,
       submittedCount,
       pendingCount: institutions.length - submittedCount,

@@ -49,13 +49,18 @@ model Institution {
   address     String?
   province    String          @default("อุดรธานี")
   programsCount Int           @default(12) // จำนวนสาขาวิชาที่เปิดสอน
-  users       User[]
-  personnels  Personnel[]
-  schoolStats SchoolStat[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  programsList  String?       @db.Text     // รายชื่อสาขาวิชาที่เปิดสอน (JSON array)
+  programsUrl   String?                    // ลิงก์รายละเอียดหลักสูตร/สาขาวิชา
+  users            User[]
+  personnels       Personnel[]
+  schoolStats      SchoolStat[]
+  dveDepartments   DveDepartment[]
+  careerClassrooms CareerClassroom[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@map("institutions")
+
 }
 
 model Personnel {
@@ -97,6 +102,33 @@ model SchoolStat {
   totalTeachers          Int         @default(0) // จำนวนครูผู้สอน
   totalStaff             Int         @default(0) // จำนวนบุคลากรทางการศึกษา
 
+  // กลุ่ม 2: สถิตินักเรียนศึกษาต่อ แต่ยังไม่สำเร็จการศึกษา (คน)
+  pendingGradM3          Int         @default(0) // นักเรียนที่ยังไม่จบ ม.3
+  pendingGradM6          Int         @default(0) // นักเรียนที่ยังไม่จบ ม.6
+  pendingGradVoc3        Int         @default(0) // นักเรียนที่ยังไม่จบ ปวช.3
+
+  // กลุ่ม 3: ข้อมูลสารสนเทศด้านการจัดการอาชีวศึกษา
+  dveStudentsCount       Int         @default(0) // จำนวนนักเรียนทวิภาคีรวม ที่กำลังศึกษาอยู่
+  dualStudyCount         Int         @default(0) // จำนวนนักเรียนทวิศึกษา ที่กำลังศึกษาอยู่ (ม.ปลาย ควบ ปวช.)
+  dualDegreeCount        Int         @default(0) // จำนวนนักเรียนทวิวุฒิ ที่กำลังศึกษาอยู่ (Dual Degree)
+  fttAssessment          Boolean     @default(false) // เข้าร่วมการประเมิน อวท. ระดับจังหวัด (true = เข้าร่วม, false = ไม่เข้าร่วม)
+
+  // กลุ่ม 4: ข้อมูลบุคลากรทางการศึกษา จำแนกเพศและวุฒิการศึกษา
+  maleTeachers           Int         @default(0) // ครู ชาย (คน)
+  femaleTeachers         Int         @default(0) // ครู หญิง (คน)
+  degreeAssociateMale    Int         @default(0) // อนุปริญญาหรือเทียบเท่า ชาย
+  degreeAssociateFemale  Int         @default(0) // อนุปริญญาหรือเทียบเท่า หญิง
+  degreeBachelorMale     Int         @default(0) // ปริญญาตรี ชาย
+  degreeBachelorFemale   Int         @default(0) // ปริญญาตรี หญิง
+  degreeMasterMale       Int         @default(0) // ปริญญาโท ชาย
+  degreeMasterFemale     Int         @default(0) // ปริญญาโท หญิง
+  degreeDoctorMale       Int         @default(0) // ปริญญาเอก ชาย
+  degreeDoctorFemale     Int         @default(0) // ปริญญาเอก หญิง
+  civilTeachersMale      Int         @default(0) // ข้าราชการครู ชาย
+  civilTeachersFemale    Int         @default(0) // ข้าราชการครู หญิง
+  hiredTeachersMale      Int         @default(0) // ครูอัตราจ้าง ชาย
+  hiredTeachersFemale    Int         @default(0) // ครูอัตราจ้าง หญิง
+
   // ข้อมูลผู้สำเร็จการศึกษา
   gradVocCertCount       Int         @default(0) // ปวช. สำเร็จการศึกษา
   gradHighVocCertCount   Int         @default(0) // ปวส. สำเร็จการศึกษา
@@ -123,11 +155,61 @@ model SchoolStat {
   @@map("school_stats")
 }
 
+// กลุ่ม 1: ข้อมูลการจัดการศึกษาระบบทวิภาคีเจาะลึกรายแผนกวิชา
+model DveDepartment {
+  id             String      @id @default(uuid())
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  academicYear   Int         // ปีการศึกษา (พ.ศ.)
+  semester       Int         @default(1) // ภาคเรียน
+  departmentName String      // ชื่อแผนกวิชา เช่น ช่างยนต์, คอมพิวเตอร์ธุรกิจ
+  studentCount   Int         @default(0) // จำนวนนักเรียนทวิภาคีในแผนกนี้ (คน)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("dve_departments")
+}
+
+// กลุ่ม 5: วิทยาลัยที่เปิดหลักสูตรห้องเรียนอาชีพ (Career Classroom & Reskill/Upskill)
+model CareerClassroom {
+  id                 String                @id @default(uuid())
+  institutionId      String
+  institution        Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  academicYear       Int                   // ปีการศึกษา (พ.ศ.)
+  semester           Int                   @default(1) // ภาคเรียน
+  courseName         String                // ชื่อหลักสูตรห้องเรียนอาชีพ
+  partnerSchoolCount Int                   @default(0) // จำนวนโรงเรียนเครือข่ายที่เข้าร่วม (Auto-calculated)
+  partnerSchoolNames String?               // รายชื่อโรงเรียนเครือข่ายที่เข้าร่วม (Auto-calculated)
+  studentCount       Int                   @default(0) // จำนวนนักเรียนที่เข้าร่วม (คน) (Auto-calculated)
+  trainingType       String                @default("SHORT_COURSE") // SHORT_COURSE (ฝึกอาชีพระยะสั้น) | RESKILL_UPSKILL (Reskill-Upskill)
+  learningFormat     String                @default("ONSITE") // ONSITE (ในสถานศึกษา) | WORKPLACE (ในสถานประกอบการ) | ONLINE (ออนไลน์) | HYBRID (ผสมผสาน)
+  partnerSchools     CareerPartnerSchool[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@map("career_classrooms")
+}
+
+// ตารางลูก: รายชื่อโรงเรียนเครือข่ายและยอดนักเรียนรายหัว
+model CareerPartnerSchool {
+  id                String          @id @default(uuid())
+  careerClassroomId String
+  careerClassroom   CareerClassroom @relation(fields: [careerClassroomId], references: [id], onDelete: Cascade)
+  schoolName        String          // ชื่อโรงเรียนเครือข่าย เช่น รร.อุดรพิทยานุกูล
+  studentCount      Int             @default(0) // จำนวนนักเรียนที่เข้าร่วมจากโรงเรียนนี้ (คน)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("career_partner_schools")
+}
+
+
 model News {
   id            String       @id @default(uuid())
   title         String
   content       String       @db.Text
   coverImageUrl String?
+  linkUrl       String?
   category      NewsCategory @default(ANNOUNCEMENT)
   isPublished   Boolean      @default(true)
   viewCount     Int          @default(0)

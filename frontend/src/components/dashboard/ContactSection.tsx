@@ -43,8 +43,8 @@ export const ContactSection: React.FC = () => {
       
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-[#932d16] text-xs font-bold uppercase tracking-wider">
-          <Mail className="w-4 h-4" />
+        <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
+          <Mail className="w-3.5 h-3.5" />
           <span>Get in Touch</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
@@ -76,7 +76,7 @@ export const ContactSection: React.FC = () => {
                 <div>
                   <span className="font-bold text-white block mb-0.5">สถานที่ตั้ง:</span>
                   <span className="text-amber-100/90 leading-relaxed">
-                    115 ถนนทหาร ตำบลหมากแข้ง อำเภอเมืองอุดรธานี จังหวัดอุดรธานี 41000
+                    3 ถนนวัฒนานุวงศ์ ตำบลหมากแข้ง อำเภอเมืองอุดรธานี จังหวัดอุดรธานี 41000
                   </span>
                 </div>
               </div>

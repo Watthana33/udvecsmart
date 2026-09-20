@@ -1,0 +1,6 @@
+# Allow all web crawlers (Google, Bing, Yahoo, DuckDuckGo)
+User-agent: *
+Allow: /
+
+# Sitemap URL
+Sitemap: https://udvec.go.th/sitemap.xml

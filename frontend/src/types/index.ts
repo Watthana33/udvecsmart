@@ -21,6 +21,8 @@ export interface Institution {
   address: string | null;
   province: string;
   programsCount?: number;
+  programsList?: string | string[] | null;
+  programsUrl?: string | null;
   personnels?: Personnel[];
   _count?: {
     personnels: number;
@@ -123,6 +125,7 @@ export interface NewsItem {
   title: string;
   content: string;
   coverImageUrl: string | null;
+  linkUrl?: string | null;
   category: NewsCategory;
   viewCount: number;
   createdAt: string;
@@ -202,6 +205,35 @@ export interface SchoolStatFormData {
   totalExecutives: number;
   totalTeachers: number;
   totalStaff: number;
+
+  // กลุ่ม 2: นักเรียนศึกษาต่อ แต่ยังไม่สำเร็จการศึกษา
+  pendingGradM3: number;
+  pendingGradM6: number;
+  pendingGradVoc3: number;
+
+  // กลุ่ม 3: สารสนเทศอาชีวศึกษา
+  dveStudentsCount: number;
+  dualStudyCount: number;
+  dualDegreeCount: number;
+  fttAssessment: boolean;
+
+  // กลุ่ม 4: บุคลากรทางการศึกษา ชาย-หญิง และวุฒิการศึกษา
+  maleTeachers: number;
+  femaleTeachers: number;
+  degreeAssociateMale: number;
+  degreeAssociateFemale: number;
+  degreeBachelorMale: number;
+  degreeBachelorFemale: number;
+  degreeMasterMale: number;
+  degreeMasterFemale: number;
+  degreeDoctorMale: number;
+  degreeDoctorFemale: number;
+  civilTeachersMale: number;
+  civilTeachersFemale: number;
+  hiredTeachersMale: number;
+  hiredTeachersFemale: number;
+
+  // ภาวะการมีงานทำ
   gradVocCertCount: number;
   gradHighVocCertCount: number;
   employedInField: number;
@@ -213,4 +245,112 @@ export interface SchoolStatFormData {
   workPrivate: number;
   workSelf: number;
 }
+
+// กลุ่ม 1: ข้อมูลแผนกวิชาทวิภาคี
+export interface DveDepartmentItem {
+  id?: string;
+  institutionId?: string;
+  academicYear?: number;
+  semester?: number;
+  departmentName: string;
+  studentCount: number;
+  institution?: {
+    id: string;
+    name: string;
+    code: string;
+    type: InstitutionType;
+  };
+}
+
+// โรงเรียนเครือข่ายและยอดนักเรียนรายหัว (1-to-Many)
+export interface CareerPartnerSchoolItem {
+  id?: string;
+  careerClassroomId?: string;
+  schoolName: string;
+  studentCount: number;
+}
+
+// กลุ่ม 5: ข้อมูลหลักสูตรห้องเรียนอาชีพ
+export interface CareerClassroomItem {
+  id?: string;
+  institutionId?: string;
+  academicYear?: number;
+  semester?: number;
+  courseName: string;
+  partnerSchoolCount: number;
+  partnerSchoolNames?: string | null;
+  studentCount: number;
+  trainingType: 'SHORT_COURSE' | 'RESKILL_UPSKILL' | string;
+  learningFormat: 'ONSITE' | 'WORKPLACE' | 'ONLINE' | 'HYBRID' | string;
+  partnerSchools?: CareerPartnerSchoolItem[];
+  institution?: {
+    id: string;
+    name: string;
+    code: string;
+    type: InstitutionType;
+  };
+}
+
+// ข้อมูลสรุปทวิภาคี & ห้องเรียนอาชีพสำหรับแดชบอร์ด
+export interface DveAndCareerSummary {
+  academicYear: number;
+  semester: number;
+  dveSummary: {
+    totalStudents: number;
+    totalDepartments: number;
+    dualStudyStudents: number;
+    dualDegreeStudents: number;
+    byInstitution: Array<{
+      institutionName: string;
+      departmentCount: number;
+      studentCount: number;
+      departments: string[];
+    }>;
+    departmentsList: DveDepartmentItem[];
+  };
+  careerClassSummary: {
+    totalCourses: number;
+    totalPartnerSchools: number;
+    totalStudents: number;
+    byTrainingType: {
+      shortCourse: number;
+      reskillUpskill: number;
+    };
+    byLearningFormat: {
+      onsite: number;
+      workplace: number;
+      online: number;
+      hybrid: number;
+    };
+    classroomsList: CareerClassroomItem[];
+  };
+  pendingGraduates: {
+    m3: number;
+    m6: number;
+    vocCert3: number;
+    total: number;
+  };
+  personnelDemographics: {
+    totalTeachers: number;
+    maleTeachers: number;
+    femaleTeachers: number;
+    civilTeachers: {
+      male: number;
+      female: number;
+      total: number;
+    };
+    hiredTeachers: {
+      male: number;
+      female: number;
+      total: number;
+    };
+    byEducation: {
+      associate: { male: number; female: number; total: number };
+      bachelor: { male: number; female: number; total: number };
+      master: { male: number; female: number; total: number };
+      doctor: { male: number; female: number; total: number };
+    };
+  };
+}
+
 

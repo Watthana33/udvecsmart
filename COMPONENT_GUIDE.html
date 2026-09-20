@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แผนที่โค้ดและคู่มือการปรับแต่ง Component - UDPVECSmart</title>
+  <!-- Google Fonts: Prompt & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Sarabun', 'sans-serif'],
+            prompt: ['Prompt', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fdf3f0',
+              100: '#fae4dd',
+              500: '#b9381b',
+              600: '#932d16',
+              700: '#73210e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; }
+    h1, h2, h3, h4, .font-prompt { font-family: 'Prompt', sans-serif; }
+    .code-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 0.75rem;
+      font-family: 'Courier New', Courier, monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+
+  <div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- Header Banner -->
+    <div class="bg-gradient-to-r from-slate-900 via-brand-700 to-brand-600 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+      <div class="absolute -right-8 -bottom-8 opacity-10 text-white text-9xl font-black pointer-events-none">REACT</div>
+      <div class="relative z-10 space-y-2">
+        <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-semibold">
+          <span>🧩 React Component & Code Architecture Guide</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">แผนที่โค้ด & คู่มือชี้เป้าการแก้ไขส่วนต่างๆ ของเว็บ</h1>
+        <p class="text-sm sm:text-base text-slate-200 max-w-2xl">
+          เจาะลึกโครงสร้าง React Component • อยากแก้ตรงไหน ไปที่ไฟล์ไหน • ข้อมูลในระบบจะหายไหมเวลาอัปเดตโค้ด?
+        </p>
+      </div>
+    </div>
+
+    <!-- Important Question Highlight: ข้อมูลจะหายไหมเวลาอัปเดตโค้ด? -->
+    <div class="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 sm:p-7 space-y-3 shadow-sm">
+      <div class="flex items-center gap-2.5 text-emerald-800 font-prompt font-bold text-base sm:text-lg">
+        <span class="text-2xl">🛡️</span>
+        <span>คำถามสำคัญ: "ถ้า ผอ. สั่งเปลี่ยนสีกราฟ แล้วเราอัปโค้ดใหม่ ข้อมูล/รหัสผ่านในระบบจะหายไหม?"</span>
+      </div>
+      <p class="text-sm text-emerald-950 font-bold">
+        👉 คำตอบคือ: "ไม่หายเด็ดขาด 100% ครับ!"
+      </p>
+      <div class="text-xs sm:text-sm text-slate-700 space-y-1.5 leading-relaxed bg-white/80 p-4 rounded-xl border border-emerald-200">
+        <p><b>ทำไมถึงไม่หาย?</b></p>
+        <p>เพราะระบบของเราใช้เทคโนโลยี <b>Docker Volume (<code class="bg-slate-100 px-1.5 py-0.5 rounded text-brand-600 font-mono">pgdata</code>)</b> ซึ่งทำงานเหมือน <b>"ตู้เซฟฝังดิน"</b> แยกออกจากตัวโค้ด:</p>
+        <ul class="list-disc list-inside space-y-1 pl-1 text-slate-600">
+          <li><b>โค้ดเว็บ (Frontend/Backend)</b>: เหมือน <i>"สีทาบ้าน หรือ ป้ายร้าน"</i> เราสามารถเปลี่ยนสี รื้อโค้ด เขียนใหม่กี่รอบก็ได้</li>
+          <li><b>ข้อมูลจริง (Database Data)</b>: รหัสผ่าน, ข้อมูลนักเรียน, รายชื่อโรงเรียน <i>ถูกเก็บถาวรอยู่ในตู้เซฟ</i></li>
+        </ul>
+        <p class="pt-1 text-emerald-900 font-semibold">
+          ✨ เมื่อแอดมินสั่งคำสั่ง <code class="bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-mono">git pull</code> แล้ว <code class="bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-mono">docker compose up -d --build</code> หน้าเว็บจะเปลี่ยนสีกราฟทันที แต่ข้อมูลและรหัสผ่านของผู้ใช้ทุกคนจะยังอยู่ครบถ้วนสมบูรณ์ 100% ครับ!
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 1: Visual Component Architecture Map -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="border-b border-slate-100 pb-4">
+        <div class="text-xs font-bold text-brand-600 uppercase tracking-wider">ตอนที่ 1: แผนผังภาพรวม</div>
+        <h2 class="text-xl font-bold text-slate-900 mt-1">โครงสร้าง Component ของ UDVECSmart (ใครคุมอะไร?)</h2>
+      </div>
+
+      <div class="bg-slate-900 text-slate-200 rounded-2xl p-5 text-xs sm:text-sm font-mono leading-relaxed overflow-x-auto">
+<span class="text-amber-400 font-bold">App.tsx</span> (ศูนย์รวมใหญ่ของทั้งเว็บ)
+ ├── <span class="text-sky-400">Navbar.tsx</span> (แถบเมนูด้านบน, สลับแท็บ 1-4, ปุ่มเข้าสู่ระบบ)
+ ├── <span class="text-sky-400">BannerSection.tsx</span> (แบนเนอร์ใหญ่ส่วนหัว + เปลี่ยนรูปตามเทศกาล)
+ │
+ ├── [ เมื่อผู้ใช้คลิกเลือกแท็บต่างๆ ]
+ │    ├── <span class="text-emerald-400">แท็บ 1: ภาพรวมสถิติ</span>
+ │    │    ├── <span class="text-purple-300">OverviewHero.tsx</span> (การ์ด ผอ.สอจ. + ข่าวประชาสัมพันธ์สไลด์)
+ │    │    ├── <span class="text-purple-300">StatCards.tsx</span> (การ์ดสรุปยอดนักเรียน, ครู, สถานศึกษา)
+ │    │    └── <span class="text-purple-300">OverviewCharts.tsx</span> (กราฟแท่ง ปวช./ปวส., กราฟสัดส่วนชาย-หญิง)
+ │    │
+ │    ├── <span class="text-emerald-400">แท็บ 2: การมีงานทำ</span>
+ │    │    ├── <span class="text-purple-300">EmploymentHero.tsx</span> (หัวข้ออธิบายการมีงานทำ)
+ │    │    └── <span class="text-purple-300">EmploymentSection.tsx</span> (กราฟการมีงานทำ, กราฟตรงสาย/ไม่ตรงสาย, หน่วยงาน)
+ │    │
+ │    ├── <span class="text-emerald-400">แท็บ 3: ทวิภาคี & ห้องเรียนอาชีพ</span>
+ │    │    ├── <span class="text-purple-300">DveCareerHero.tsx</span> (หัวข้อข้อมูลทวิภาคี)
+ │    │    └── <span class="text-purple-300">DveCareerSection.tsx</span> (ตารางเจาะลึกรายแผนก, ยอดนักเรียน, เครือข่าย)
+ │    │
+ │    └── <span class="text-emerald-400">แท็บ 4: สถานศึกษา 29 แห่ง</span>
+ │         ├── <span class="text-purple-300">FilterBar.tsx</span> (กล่องค้นหาชื่อวิทยาลัย, ปุ่มกรอง รัฐ/เอกชน)
+ │         └── <span class="text-purple-300">InstitutionList.tsx</span> (การ์ดวิทยาลัย 29 แห่ง, รูปผู้บริหาร, เบอร์โทร)
+ │
+ ├── <span class="text-sky-400">ContactSection.tsx</span> (กล่องส่งข้อความติดต่อ สอจ.อุดรธานี)
+ ├── <span class="text-sky-400">Footer.tsx</span> (ส่วนท้ายเว็บ, ลิงก์ด่วน, ข้อมูลลิขสิทธิ์)
+ │
+ ├── [ หน้าต่างป๊อปอัป Modal พิเศษ ]
+ │    ├── <span class="text-amber-300">LoginModal.tsx</span> (หน้าต่างล็อกอินเจ้าหน้าที่ + ปุ่มรูปตาดูรหัสผ่าน)
+ │    ├── <span class="text-amber-300">AdminPortal.tsx</span> (ศูนย์ควบคุมระบบ Super Admin & แอดมินโรงเรียน 4 แท็บ)
+ │    └── <span class="text-amber-300">OfficialReportPrintModal.tsx</span> (แบบฟอร์มพิมพ์เอกสารราชการ สถิติ 5 หมวด)
+      </div>
+    </div>
+
+    <!-- Section 2: Cheat Sheet ชี้เป้าการแก้ไข 4 สถานการณ์ยอดนิยม -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="border-b border-slate-100 pb-4">
+        <div class="text-xs font-bold text-brand-600 uppercase tracking-wider">ตอนที่ 2: วิธีแก้จริง</div>
+        <h2 class="text-xl font-bold text-slate-900 mt-1">ชี้เป้า 4 จุดยอดนิยม (อยากแก้ตรงนี้ ต้องไปที่ไฟล์ไหน?)</h2>
+      </div>
+
+      <!-- Case 1: เปลี่ยนสีกราฟ -->
+      <div class="border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center gap-2 font-prompt font-bold text-base text-slate-900">
+          <span class="w-6 h-6 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs">1</span>
+          <span>ผอ. สั่งเปลี่ยน "สีกราฟ" (เช่น กราฟนักเรียน, กราฟการมีงานทำ)</span>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-600 space-y-2 pl-8">
+          <p>📍 <b>ไฟล์ที่ 1 (กราฟหน้าแรก):</b> <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-brand-600">frontend/src/components/dashboard/OverviewCharts.tsx</code></p>
+          <p>📍 <b>ไฟล์ที่ 2 (กราฟการมีงานทำ):</b> <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-brand-600">frontend/src/components/dashboard/EmploymentSection.tsx</code></p>
+          <div class="code-box p-3 text-xs">
+            <span class="text-slate-400">// ตัวอย่าง: ค้นหาคำว่า backgroundColor แล้วเปลี่ยนรหัสโค้ดสี HEX</span><br>
+            backgroundColor: <span class="text-amber-400">'#0284c7'</span>, <span class="text-slate-400">// ฟ้า</span><br>
+            backgroundColor: <span class="text-emerald-400">'#059669'</span>, <span class="text-slate-400">// เขียว</span><br>
+            backgroundColor: <span class="text-rose-400">'#e11d48'</span>, <span class="text-slate-400">// แดงชมพู</span><br>
+            backgroundColor: <span class="text-purple-400">'#7c3aed'</span>, <span class="text-slate-400">// ม่วง</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Case 2: แก้ข้อมูลแท็บทวิภาคี / ห้องเรียนอาชีพ -->
+      <div class="border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center gap-2 font-prompt font-bold text-base text-slate-900">
+          <span class="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs">2</span>
+          <span>อยากแก้ข้อมูลใน "แท็บระบบทวิภาคี & ห้องเรียนอาชีพ"</span>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-600 space-y-2 pl-8">
+          <p>📍 <b>ไฟล์หลัก:</b> <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-brand-600">frontend/src/components/dashboard/DveCareerSection.tsx</code></p>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li><b>ค้นหาคำว่า:</b> <i>"ตารางแสดงจำนวนนักเรียนระบบทวิภาคี"</i> หรือ <i>"โครงการห้องเรียนอาชีพ"</i></li>
+            <li>ไฟล์นี้จะคุมทั้งการแสดงกราฟสัดส่วนแผนกวิชา, รายชื่อโรงเรียนมัธยมเครือข่าย, และตารางเจาะลึก</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Case 3: แก้ไขหัวข้อ / ข้อความ / ป้ายประกาศ -->
+      <div class="border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center gap-2 font-prompt font-bold text-base text-slate-900">
+          <span class="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">3</span>
+          <span>อยากแก้คำ หรือเปลี่ยนข้อความบนหน้าเว็บ แต่ไม่รู้ว่าอยู่ไฟล์ไหน?</span>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-600 space-y-2 pl-8">
+          <p>💡 <b>เคล็ดลับลับของโปรแกรมเมอร์ (Global Search ใน VS Code):</b></p>
+          <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
+            <p>1. กดปุ่มลัด <b>`Ctrl + Shift + F`</b> ในโปรแกรม VS Code</p>
+            <p>2. พิมพ์ข้อความภาษาไทยที่คุณเห็นบนหน้าเว็บ (เช่น คำว่า <i>"สำนักงานอาชีวศึกษาจังหวัดอุดรธานี"</i>)</p>
+            <p>3. VS Code จะกวาดหาไฟล์ที่มีคำนี้ทั้งหมดขึ้นมาให้คุณคลิกเข้าไปแก้ได้ทันที!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Case 4: แก้ไขระบบหลังบ้าน และแอดมินพอร์ทัล -->
+      <div class="border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center gap-2 font-prompt font-bold text-base text-slate-900">
+          <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs">4</span>
+          <span>อยากแก้แบบฟอร์มกรอกข้อมูล หรือหน้าศูนย์ควบคุม (Admin Portal)</span>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-600 space-y-2 pl-8">
+          <p>📍 <b>ไฟล์เดียวที่คุมระบบหลังบ้านทั้งหมด:</b> <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-brand-600">frontend/src/components/portal/AdminPortal.tsx</code></p>
+          <p>ในไฟล์นี้จะมีทั้งแท็บ 1 (สถานศึกษา), แท็บ 2 (แบนเนอร์/ข่าว), แท็บ 3 (จัดการผู้ใช้งาน), แท็บ 4 (เปิด-ปิดรับข้อมูล) และแบบฟอร์มรายงาน 5 หมวดครับ</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Section 3: Color Palette Quick Reference -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-4">
+      <h2 class="text-lg font-bold text-slate-900">🎨 รหัสสีธีมหลักของระบบ (Brand Color Scheme)</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+        <div class="p-3 rounded-xl bg-[#932d16] text-white font-bold text-center shadow-sm">
+          <div>#932d16</div>
+          <div class="text-[10px] font-sans font-normal opacity-80 mt-0.5">แดงเลือดหมู สอจ.</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#0284c7] text-white font-bold text-center shadow-sm">
+          <div>#0284c7</div>
+          <div class="text-[10px] font-sans font-normal opacity-80 mt-0.5">ฟ้า สถิติ/นักเรียน</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#059669] text-white font-bold text-center shadow-sm">
+          <div>#059669</div>
+          <div class="text-[10px] font-sans font-normal opacity-80 mt-0.5">เขียว รัฐบาล/มีงานทำ</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#7c3aed] text-white font-bold text-center shadow-sm">
+          <div>#7c3aed</div>
+          <div class="text-[10px] font-sans font-normal opacity-80 mt-0.5">ม่วง ปวช./ทวิภาคี</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-slate-400 py-2">
+      คู่มือโครงสร้าง Component • UDPVECSmart (สอจ.อุดรธานี) • พัฒนาด้วย React + TypeScript + Tailwind CSS
+    </div>
+
+  </div>
+
+</body>
+</html>

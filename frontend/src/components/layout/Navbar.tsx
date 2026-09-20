@@ -3,13 +3,11 @@ import { UserProfile } from '../../types';
 import {
   LogIn,
   LogOut,
-  Building2,
-  ShieldCheck,
   BarChart3,
   School,
   Briefcase,
   Mail,
-  FileSpreadsheet,
+  Cog,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -28,33 +26,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
 }) => {
   const navItems = [
-    { id: 'overview', label: 'ภาพรวม', icon: BarChart3, isPortal: false },
-    { id: 'employment', label: 'ภาวะการมีงานทำ', icon: Briefcase, isPortal: false },
-    { id: 'institutions', label: 'สถานศึกษาในสังกัด', icon: School, isPortal: false },
-    { id: 'contact', label: 'ติดต่อเรา', icon: Mail, isPortal: false },
-    ...(user
-      ? [
-          {
-            id: 'portal',
-            label: user.role === 'SUPER_ADMIN' ? 'ศูนย์ควบคุม สอจ.' : 'บันทึกข้อมูลสถิติ',
-            icon: user.role === 'SUPER_ADMIN' ? ShieldCheck : FileSpreadsheet,
-            isPortal: true,
-          },
-        ]
-      : []),
+    { id: 'overview', label: 'ข้อมูลพื้นฐาน', icon: BarChart3 }, // BarChart3 icon for Overview
+    { id: 'dve_career', label: 'ทวิภาคี & ห้องเรียนอาชีพ', icon: Cog }, // Award icon for DVE Career
+    { id: 'employment', label: 'ภาวะการมีงานทำ', icon: Briefcase },
+    { id: 'institutions', label: 'สถานศึกษาในสังกัด', icon: School },
+    { id: 'contact', label: 'ติดต่อเรา', icon: Mail },
   ];
 
-  // เมื่อคลิกที่แท็บใดก็ตาม ให้ระบบเลื่อนไปที่ตำแหน่งข้อมูลนั้นๆ อัตโนมัติ
+  // เมื่อคลิกที่แท็บใดก็ตาม ให้ระบบเลื่อนไปที่ตำแหน่งข้อมูลนั้นๆ อัตโนมัติ (Offset สำหรับ Sticky Navbar)
   const handleTabSelect = (tabId: string) => {
     setActiveTab(tabId);
     setTimeout(() => {
       const element = document.getElementById('main-tab-content');
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
+        const yOffset = -90;
+        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
       } else {
         window.scrollTo({ top: 380, behavior: 'smooth' });
       }
-    }, 60);
+    }, 80);
   };
 
   return (
@@ -98,24 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              
-              if (item.isPortal) {
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabSelect(item.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer font-bold ${
-                      isActive
-                        ? 'bg-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300/50'
-                        : 'bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-300/30'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 text-amber-300" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              }
-
               return (
                 <button
                   key={item.id}
@@ -133,40 +106,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* Auth Button / User Profile (Pushed to Far Right with Truncate to prevent breaking) */}
-          <div className="flex items-center gap-3 ml-auto shrink-0">
+          {/* Auth Button / User Profile (Pushed to Far Right) */}
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto shrink-0">
             {user ? (
-              <div className="flex items-center gap-2.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-2xl py-1.5 px-3 text-white max-w-[240px] sm:max-w-[280px]">
-                <div className="w-8 h-8 rounded-xl bg-amber-400 text-[#932d16] flex items-center justify-center font-bold text-xs shadow shrink-0">
-                  {user.fullName.charAt(0)}
-                </div>
-                <div className="text-left min-w-0 flex-1 hidden sm:block">
-                  <div className="text-xs font-bold text-white flex items-center gap-1">
-                    <span className="truncate" title={user.fullName}>
-                      {user.fullName}
-                    </span>
-                    {user.role === 'SUPER_ADMIN' ? (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-400 text-slate-900 px-1.5 py-0.2 rounded font-semibold shrink-0">
-                        <ShieldCheck className="w-2.5 h-2.5" /> สอจ.
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-400 text-slate-900 px-1.5 py-0.2 rounded font-semibold shrink-0">
-                        <Building2 className="w-2.5 h-2.5" /> วิทยาลัย
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-white/70 truncate" title={user.institution?.name || user.email}>
-                    {user.institution?.name || user.email}
-                  </div>
-                </div>
-                <button
-                  onClick={onLogout}
-                  title="ออกจากระบบ"
-                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded-xl transition-colors shrink-0 ml-1"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
+              /* ปุ่ม ออกจากระบบ เด่นชัด */
+              <button
+                onClick={onLogout}
+                title="คลิกเพื่อออกจากระบบ"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0 border border-rose-400/40"
+              >
+                <LogOut className="w-4 h-4 shrink-0 text-rose-100" />
+                <span>ออกจากระบบ</span>
+              </button>
             ) : (
               <button
                 onClick={onOpenLogin}
@@ -191,11 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleTabSelect(item.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap transition-all ${
                   isActive
-                    ? item.isPortal
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow'
-                      : 'bg-white text-[#932d16] font-bold shadow'
-                    : item.isPortal
-                    ? 'bg-amber-400/20 text-amber-200 border border-amber-300/30'
+                    ? 'bg-white text-[#932d16] font-bold shadow'
                     : 'text-white/80 hover:bg-white/10'
                 }`}
               >

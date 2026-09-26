@@ -1,5 +1,6 @@
 import { PrismaClient, Role, InstitutionType, NewsCategory } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import process from 'node:process';
 
 const prisma = new PrismaClient();
 
@@ -17,10 +18,10 @@ async function main() {
       code: '13410101',
       name: 'วิทยาลัยเทคนิคอุดรธานี',
       type: InstitutionType.PUBLIC,
-      director: 'นายธีรภัทร์ ไชยสัตย์',
+      director: 'นายชาญชัย แสนจันทร์',
       website: 'https://www.udtech.ac.th',
       phone: '042-221538',
-      address: '115 ถนนทหาร ตำบลหมากแข้ง อำเภอเมืองอุดรธานี จังหวัดอุดรธานี 41000',
+      address: '3 ถนนวัฒนานุวงศ์ ตำบลหมากแข้ง อำเภอเมืองอุดรธานี จังหวัดอุดรธานี 41000',
       male: 2450, female: 1300,
       v1: 850, v2: 780, v3: 720, d1: 710, d2: 570, b: 120,
       teachers: 145, staff: 48,
@@ -120,7 +121,7 @@ async function main() {
     },
     {
       code: '13410108',
-      name: 'วิทยาลัยการอาชีพเพ็ญ',
+      name: 'วิทยาลัยการอาชีพทดสอบ1',
       type: InstitutionType.PUBLIC,
       director: 'นายอำนวย ชาญวิวัฒน์',
       website: 'https://www.pice.ac.th',
@@ -461,8 +462,8 @@ async function main() {
     '13410105': 12, // วิทยาลัยการอาชีพกุมภวาปี
     '13410106': 10, // วิทยาลัยการอาชีพหนองหาน
     '13410107': 8,  // วิทยาลัยเกษตรและเทคโนโลยีอุดรธานี
-    '13410108': 10, // วิทยาลัยการอาชีพเพ็ญ
-    '13410109': 10, // วิทยาลัยการอาชีพกุดจับ
+    '13410108': 10, // วิทยาลัยการอาชีพทดสอบ1
+    '13410109': 10, // วิทยาลัยการอาชีพทดสอบ2
     '13410110': 11, // วิทยาลัยเทคโนโลยีและอุตสาหกรรม
   };
 
@@ -697,6 +698,7 @@ async function main() {
           content: n.content,
           category: n.category,
           isPublished: true,
+          viewCount: 1,
           authorId: superAdmin.id,
         },
       });

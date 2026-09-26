@@ -212,7 +212,7 @@ model News {
   linkUrl       String?
   category      NewsCategory @default(ANNOUNCEMENT)
   isPublished   Boolean      @default(true)
-  viewCount     Int          @default(0)
+  viewCount     Int          @default(1)
   authorId      String?
   author        User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
   createdAt     DateTime     @default(now())

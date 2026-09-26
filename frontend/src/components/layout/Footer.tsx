@@ -1,47 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Phone, Mail, Award, Eye } from 'lucide-react';
-import { getVisitorCount, incrementVisitorCount } from '../../services/api';
+import { incrementVisitorCount } from '../../services/api';
 
 export const Footer: React.FC = () => {
-  // สถิติการเข้าชมเว็บไซต์ (ดึงยอดจริงจากฐานข้อมูลเซิร์ฟเวอร์กลาง + ป้องกันนับซ้ำด้วย sessionStorage)
+  // สถิติการเข้าชมเว็บไซต์ (ดึงยอดจริงจากฐานข้อมูลเซิร์ฟเวอร์กลาง และนับเพิ่มทุกครั้งที่มีผู้เข้าชม)
   const [visitCount, setVisitCount] = useState<number>(() => {
     const saved = localStorage.getItem('udvec_visitor_count');
     return saved ? parseInt(saved, 10) : 18520;
   });
 
   useEffect(() => {
-    const sessionKey = 'udvec_visited_session';
-    const isNewSession = !sessionStorage.getItem(sessionKey);
-
-    if (isNewSession) {
-      sessionStorage.setItem(sessionKey, '1');
-      incrementVisitorCount()
-        .then((newCount) => {
-          if (newCount) {
-            setVisitCount(newCount);
-            localStorage.setItem('udvec_visitor_count', newCount.toString());
-          }
-        })
-        .catch((err) => {
-          console.warn('Backend visitor counter error, fallback to local:', err);
-          setVisitCount((prev) => {
-            const next = prev + 1;
-            localStorage.setItem('udvec_visitor_count', next.toString());
-            return next;
-          });
+    incrementVisitorCount()
+      .then((newCount) => {
+        if (newCount) {
+          setVisitCount(newCount);
+          localStorage.setItem('udvec_visitor_count', newCount.toString());
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend visitor counter error, fallback to local:', err);
+        setVisitCount((prev) => {
+          const next = prev + 1;
+          localStorage.setItem('udvec_visitor_count', next.toString());
+          return next;
         });
-    } else {
-      getVisitorCount()
-        .then((count) => {
-          if (count) {
-            setVisitCount(count);
-            localStorage.setItem('udvec_visitor_count', count.toString());
-          }
-        })
-        .catch((err) => {
-          console.warn('Backend visitor fetch error, fallback to local:', err);
-        });
-    }
+      });
   }, []);
 
 

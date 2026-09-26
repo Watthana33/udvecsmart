@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NewsItem } from '../../types';
-import { School, Newspaper, Calendar, Eye, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { School, Newspaper, Calendar, Eye, ChevronLeft, ChevronRight, ExternalLink, X, BookOpen } from 'lucide-react';
 import { incrementNewsView } from '../../services/api';
 
 interface OverviewHeroProps {
@@ -13,6 +13,7 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
   const [currentIndex, setCurrentIndex] = useState(0);
   const [viewedSet, setViewedSet] = useState<Set<string>>(new Set());
   const [localViews, setLocalViews] = useState<Record<string, number>>({});
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
   const isLoading = loadingNews ?? loading ?? false;
 
   // Auto-advance news every 6s
@@ -33,6 +34,20 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
   };
 
   const currentNews = newsList.length > 0 ? newsList[currentIndex] : null;
+
+  // นับยอดวิวเมื่อคลิกดูข่าว (+1) ทั้งใน UI และส่งบันทึกลงฐานข้อมูลจริง
+  const handleNewsClick = async (news: NewsItem) => {
+    setLocalViews((prev) => ({
+      ...prev,
+      [news.id]: (prev[news.id] ?? news.viewCount ?? 1) + 1,
+    }));
+    try {
+      await incrementNewsView(news.id);
+    } catch (e) {
+      console.warn('Failed to increment view count:', e);
+    }
+    setSelectedNews(news);
+  };
 
   // Record view count (+1) on view
   const recordView = async (id: string) => {
@@ -157,12 +172,16 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
 
                 {/* Bottom Area: Headline, Teaser, View count & Action Link */}
                 <div className="relative z-10 p-5 sm:p-6 pt-2 space-y-3">
-                  <div className="space-y-1.5">
-                    <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-white leading-snug drop-shadow-md hover:text-amber-200 transition-colors line-clamp-2">
+                  <div 
+                    className="space-y-1.5 cursor-pointer group/title"
+                    onClick={() => handleNewsClick(currentNews)}
+                    title="คลิกเพื่ออ่านรายละเอียดข่าวสาร"
+                  >
+                    <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-white leading-snug drop-shadow-md group-hover/title:text-amber-200 transition-colors line-clamp-2">
                       {currentNews.title}
                     </h3>
                     {currentNews.content && (
-                      <p className="text-xs sm:text-sm text-slate-200 line-clamp-2 leading-relaxed drop-shadow max-w-2xl font-normal">
+                      <p className="text-xs sm:text-sm text-slate-200 line-clamp-2 leading-relaxed drop-shadow max-w-2xl font-normal group-hover/title:text-white transition-colors">
                         {currentNews.content}
                       </p>
                     )}
@@ -176,19 +195,14 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
                         <span>เข้าชม {displayViews.toLocaleString()} ครั้ง</span>
                       </span>
 
-                      {currentNews.linkUrl && (
-                        <a
-                          href={currentNews.linkUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => recordView(currentNews.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-bold rounded-lg shadow-md transition-all"
-                          title="คลิกเพื่ออ่านรายละเอียดเพิ่มเติมในแท็บใหม่"
-                        >
-                          <span>อ่านต่อ / ดูรายละเอียด</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                      <button
+                        onClick={() => handleNewsClick(currentNews)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-bold rounded-lg shadow-md transition-all cursor-pointer"
+                        title="คลิกเพื่ออ่านรายละเอียดข่าวสาร"
+                      >
+                        <span>อ่านต่อ / ดูข้อมูล</span>
+                        <BookOpen className="w-3 h-3" />
+                      </button>
                     </div>
 
                     {/* Dot Indicators */}
@@ -217,6 +231,83 @@ export const OverviewHero: React.FC<OverviewHeroProps> = ({ newsList, loadingNew
 
         </div>
       </div>
+
+      {/* Modal แสดงรายละเอียดข่าวสารแบบเต็มเมื่อคลิกดูข้อมูล */}
+      {selectedNews && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedNews(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 overflow-hidden relative flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Image if available */}
+            {selectedNews.coverImageUrl && (
+              <div className="w-full h-56 sm:h-72 bg-slate-950 relative overflow-hidden shrink-0">
+                <img 
+                  src={selectedNews.coverImageUrl} 
+                  alt={selectedNews.title} 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              </div>
+            )}
+
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedNews(null)}
+              className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center transition-all cursor-pointer"
+              title="ปิดหน้าต่าง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Content Body */}
+            <div className="p-6 sm:p-8 space-y-4">
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="px-3 py-1 bg-[#932d16]/10 text-[#932d16] font-bold rounded-full">
+                  ข่าวประชาสัมพันธ์
+                </span>
+                <span className="text-slate-500 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {new Date(selectedNews.createdAt).toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </span>
+                <span className="text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 border border-amber-200/60 ml-auto">
+                  <Eye className="w-3.5 h-3.5" />
+                  เข้าชม {(localViews[selectedNews.id] ?? selectedNews.viewCount ?? 1).toLocaleString()} ครั้ง
+                </span>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
+                {selectedNews.title}
+              </h2>
+
+              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line border-t border-slate-100 pt-4">
+                {selectedNews.content}
+              </div>
+
+              {selectedNews.linkUrl && (
+                <div className="pt-4 border-t border-slate-100 flex justify-end">
+                  <a
+                    href={selectedNews.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                  >
+                    <span>ไปยังลิงก์ต้นทาง / เอกสารแนบ</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

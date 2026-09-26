@@ -173,6 +173,7 @@ export async function createNews(req: AuthRequest, res: Response): Promise<void>
         linkUrl: linkUrl || null,
         category: category && Object.values(NewsCategory).includes(category) ? category : NewsCategory.ANNOUNCEMENT,
         isPublished: true,
+        viewCount: 1, // เริ่มต้น 1 ครั้งเสมอเมื่อมีการอัพข่าวใหม่
         authorId: req.user?.userId,
       },
     });

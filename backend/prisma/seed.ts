@@ -453,7 +453,7 @@ async function main() {
     },
   ];
 
-  // 3. Upsert วิทยาลัย, ผู้บริหาร, และ สถิติ
+  // 3. สร้างข้อมูลวิทยาลัย, ผู้บริหาร, และ สถิติเฉพาะเมื่อยังไม่มีในระบบ (Safe Seed - ไม่เขียนทับข้อมูลเดิมเด็ดขาด)
   const programsMap: Record<string, number> = {
     '13410101': 24, // วิทยาลัยเทคนิคอุดรธานี
     '13410102': 18, // วิทยาลัยอาชีวศึกษาอุดรธานี
@@ -472,37 +472,31 @@ async function main() {
     count++;
     const progCount = programsMap[item.code] || (item.type === InstitutionType.PUBLIC ? 10 : (8 + (count % 5)));
 
-    const inst = await prisma.institution.upsert({
+    // ค้นหาสถานศึกษาเดิมก่อน ถ้ามีอยู่แล้วจะไม่แก้ไขทับข้อมูลที่ผู้ใช้เคยตั้งค่าไว้
+    let inst = await prisma.institution.findUnique({
       where: { code: item.code },
-      update: {
-        name: item.name,
-        type: item.type,
-        website: item.website,
-        phone: item.phone,
-        address: item.address,
-        programsCount: progCount,
-      },
-      create: {
-        code: item.code,
-        name: item.name,
-        type: item.type,
-        website: item.website,
-        phone: item.phone,
-        address: item.address,
-        programsCount: progCount,
-      },
     });
 
-    // สร้าง/อัปเดต ผู้บริหาร
+    if (!inst) {
+      inst = await prisma.institution.create({
+        data: {
+          code: item.code,
+          name: item.name,
+          type: item.type,
+          website: item.website,
+          phone: item.phone,
+          address: item.address,
+          programsCount: progCount,
+        },
+      });
+    }
+
+    // สร้างข้อมูลผู้บริหารเริ่มต้นเฉพาะกรณีที่ยังไม่มี (ไม่เขียนทับชื่อหรือรูปที่แอดมินเปลี่ยนแล้ว)
     const existingPersonnel = await prisma.personnel.findFirst({
       where: { institutionId: inst.id, order: 1 },
     });
-    if (existingPersonnel) {
-      await prisma.personnel.update({
-        where: { id: existingPersonnel.id },
-        data: { name: item.director, position: 'ผู้อำนวยการวิทยาลัย' },
-      });
-    } else {
+
+    if (!existingPersonnel) {
       await prisma.personnel.create({
         data: {
           name: item.director,
@@ -513,13 +507,8 @@ async function main() {
       });
     }
 
-    // สร้าง/อัปเดต สถิติปี 2568 ภาคเรียนที่ 1
-    const totalV = item.v1 + item.v2 + item.v3;
-    const totalD = item.d1 + item.d2;
-    const totalStudents = totalV + totalD + item.b;
-    const employedTotal = item.empIn + item.empOut + item.empFree;
-
-    await prisma.schoolStat.upsert({
+    // ตรวจสอบสถิติปี 2568 ภาคเรียนที่ 1 ถ้ามีข้อมูลอยู่แล้วจะไม่เขียนทับข้อมูลที่แอดมินกรอกไว้เด็ดขาด
+    const existingStat = await prisma.schoolStat.findUnique({
       where: {
         institutionId_academicYear_semester: {
           institutionId: inst.id,
@@ -527,62 +516,46 @@ async function main() {
           semester: 1,
         },
       },
-      update: {
-        maleStudents: item.male,
-        femaleStudents: item.female,
-        vocCert1: item.v1,
-        vocCert2: item.v2,
-        vocCert3: item.v3,
-        highVocCert1: item.d1,
-        highVocCert2: item.d2,
-        bachelorCount: item.b,
-        vocCertCount: totalV,
-        highVocCertCount: totalD,
-        totalStudents: totalStudents,
-        totalTeachers: item.teachers,
-        totalStaff: item.staff,
-        gradVocCertCount: item.gradV,
-        gradHighVocCertCount: item.gradD,
-        employedGraduatesCount: employedTotal,
-        furtherStudyCount: item.study,
-        unemployedCount: item.unemp,
-        employedInField: item.empIn,
-        employedOutField: item.empOut,
-        employedFreelance: item.empFree,
-        workGov: item.gov,
-        workPrivate: item.priv,
-        workSelf: item.self,
-      },
-      create: {
-        institutionId: inst.id,
-        academicYear: 2568,
-        semester: 1,
-        maleStudents: item.male,
-        femaleStudents: item.female,
-        vocCert1: item.v1,
-        vocCert2: item.v2,
-        vocCert3: item.v3,
-        highVocCert1: item.d1,
-        highVocCert2: item.d2,
-        bachelorCount: item.b,
-        vocCertCount: totalV,
-        highVocCertCount: totalD,
-        totalStudents: totalStudents,
-        totalTeachers: item.teachers,
-        totalStaff: item.staff,
-        gradVocCertCount: item.gradV,
-        gradHighVocCertCount: item.gradD,
-        employedGraduatesCount: employedTotal,
-        furtherStudyCount: item.study,
-        unemployedCount: item.unemp,
-        employedInField: item.empIn,
-        employedOutField: item.empOut,
-        employedFreelance: item.empFree,
-        workGov: item.gov,
-        workPrivate: item.priv,
-        workSelf: item.self,
-      },
     });
+
+    if (!existingStat) {
+      const totalV = item.v1 + item.v2 + item.v3;
+      const totalD = item.d1 + item.d2;
+      const totalStudents = totalV + totalD + item.b;
+      const employedTotal = item.empIn + item.empOut + item.empFree;
+
+      await prisma.schoolStat.create({
+        data: {
+          institutionId: inst.id,
+          academicYear: 2568,
+          semester: 1,
+          maleStudents: item.male,
+          femaleStudents: item.female,
+          vocCert1: item.v1,
+          vocCert2: item.v2,
+          vocCert3: item.v3,
+          highVocCert1: item.d1,
+          highVocCert2: item.d2,
+          bachelorCount: item.b,
+          vocCertCount: totalV,
+          highVocCertCount: totalD,
+          totalStudents: totalStudents,
+          totalTeachers: item.teachers,
+          totalStaff: item.staff,
+          gradVocCertCount: item.gradV,
+          gradHighVocCertCount: item.gradD,
+          employedGraduatesCount: employedTotal,
+          furtherStudyCount: item.study,
+          unemployedCount: item.unemp,
+          employedInField: item.empIn,
+          employedOutField: item.empOut,
+          employedFreelance: item.empFree,
+          workGov: item.gov,
+          workPrivate: item.priv,
+          workSelf: item.self,
+        },
+      });
+    }
   }
   console.log(`✅ Seeded all ${count} institutions with directors and detailed statistics!`);
 
@@ -592,9 +565,7 @@ async function main() {
 
   const superAdmin = await prisma.user.upsert({
     where: { email: 'admin@udpvec.go.th' },
-    update: {
-      passwordHash: superAdminPasswordHash,
-    },
+    update: {}, // ไม่เขียนทับรหัสผ่านเดิมหากมีการเปลี่ยนรหัสผ่านแล้ว
     create: {
       email: 'admin@udpvec.go.th',
       passwordHash: superAdminPasswordHash,
@@ -637,7 +608,7 @@ async function main() {
   }
   console.log('✅ School Admins ready (admin.udtc and admin.udvc)');
 
-  // 5. ปรับค่าการตั้งค่าระบบ (UDVECSmart & Year 2568)
+  // 5. ปรับค่าการตั้งค่าระบบ (UDVECSmart & Year 2568) - ไม่เขียนทับถ้ามีอยู่แล้ว
   const settings = [
     {
       key: 'system_title',
@@ -664,34 +635,34 @@ async function main() {
   for (const s of settings) {
     await prisma.siteSetting.upsert({
       where: { key: s.key },
-      update: { value: s.value },
+      update: {}, // ไม่เขียนทับการตั้งค่าที่ผู้ดูแลระบบปรับแต่งไว้แล้ว
       create: s,
     });
   }
-  console.log('✅ Site settings updated to UDVECSmart & Year 2568.');
+  console.log('✅ Site settings initialized (skipping overwrite if existing).');
 
-  // 6. สร้างข่าวประชาสัมพันธ์ 3 ข่าวสำหรับ Carousel
-  const sampleNews = [
-    {
-      title: 'ยินดีต้อนรับสู่ระบบสารสนเทศอาชีวศึกษาจังหวัดอุดรธานี (UDVECSmart)',
-      content: 'สอจ.อุดรธานี ยกระดับการบริหารจัดการข้อมูลสถานศึกษาทั้ง 29 แห่งในจังหวัด เข้าสู่ระบบฐานข้อมูลกลางและสถิติสารสนเทศแบบ Real-time',
-      category: NewsCategory.ANNOUNCEMENT,
-    },
-    {
-      title: 'ประกาศเปิดรับการรายงานข้อมูลสถิตินักศึกษาและภาวะการมีงานทำ ปีการศึกษา 2568',
-      content: 'ขอเชิญแอดมินสถานศึกษาภาครัฐและเอกชนทุกแห่ง ดำเนินการเข้าสู่ระบบเพื่อบันทึกและยืนยันข้อมูลจำนวนนักเรียนและผู้สำเร็จการศึกษา',
-      category: NewsCategory.ACTIVITY,
-    },
-    {
-      title: 'ผลการแข่งขันทักษะวิชาชีพและทักษะวิชาการ ระดับจังหวัดอุดรธานี ประจำปีการศึกษา 2568',
-      content: 'ขอแสดงความยินดีกับตัวแทนนักเรียนนักศึกษาอาชีวศึกษาจังหวัดอุดรธานีที่คว้ารางวัลชนะเลิศและเป็นตัวแทนระดับภาคตะวันออกเฉียงเหนือ',
-      category: NewsCategory.ACTIVITY,
-    },
-  ];
+  // 6. สร้างข่าวประชาสัมพันธ์เริ่มต้นเฉพาะเมื่อตารางข่าวสารยังว่างเปล่า 100%
+  const newsCount = await prisma.news.count();
+  if (newsCount === 0) {
+    const sampleNews = [
+      {
+        title: 'ยินดีต้อนรับสู่ระบบสารสนเทศอาชีวศึกษาจังหวัดอุดรธานี (UDVECSmart)',
+        content: 'สอจ.อุดรธานี ยกระดับการบริหารจัดการข้อมูลสถานศึกษาทั้ง 29 แห่งในจังหวัด เข้าสู่ระบบฐานข้อมูลกลางและสถิติสารสนเทศแบบ Real-time',
+        category: NewsCategory.ANNOUNCEMENT,
+      },
+      {
+        title: 'ประกาศเปิดรับการรายงานข้อมูลสถิตินักศึกษาและภาวะการมีงานทำ ปีการศึกษา 2568',
+        content: 'ขอเชิญแอดมินสถานศึกษาภาครัฐและเอกชนทุกแห่ง ดำเนินการเข้าสู่ระบบเพื่อบันทึกและยืนยันข้อมูลจำนวนนักเรียนและผู้สำเร็จการศึกษา',
+        category: NewsCategory.ACTIVITY,
+      },
+      {
+        title: 'ผลการแข่งขันทักษะวิชาชีพและทักษะวิชาการ ระดับจังหวัดอุดรธานี ประจำปีการศึกษา 2568',
+        content: 'ขอแสดงความยินดีกับตัวแทนนักเรียนนักศึกษาอาชีวศึกษาจังหวัดอุดรธานีที่คว้ารางวัลชนะเลิศและเป็นตัวแทนระดับภาคตะวันออกเฉียงเหนือ',
+        category: NewsCategory.ACTIVITY,
+      },
+    ];
 
-  for (const n of sampleNews) {
-    const existing = await prisma.news.findFirst({ where: { title: n.title } });
-    if (!existing) {
+    for (const n of sampleNews) {
       await prisma.news.create({
         data: {
           title: n.title,
@@ -703,8 +674,10 @@ async function main() {
         },
       });
     }
+    console.log('✅ Sample news announcements created for Slider/Carousel.');
+  } else {
+    console.log(`ℹ️ News table already has ${newsCount} item(s), skipping sample news.`);
   }
-  console.log('✅ Sample news announcements created for Slider/Carousel.');
 
   console.log('🎉 Database seeding completed successfully!');
 }

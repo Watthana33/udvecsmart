@@ -32,7 +32,7 @@ const customDataLabelsPlugin = {
         const val = dataset.data[index];
         if (val !== undefined && val !== null && val > 0) {
           const formatted = Number(val).toLocaleString();
-          ctx.fillStyle = datasetIndex === 0 ? '#5b21b6' : '#0369a1';
+          ctx.fillStyle = datasetIndex === 0 ? '#932d16' : '#a75d08';
           ctx.fillText(formatted, element.x, element.y - 4);
         }
       });
@@ -100,7 +100,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               stats.students.byGrade.highVocCert2,
               stats.students.byGrade.bachelor,
             ],
-            backgroundColor: '#7c3aed',
+            backgroundColor: '#932ก16',
             borderRadius: 6,
           },
         ],
@@ -118,7 +118,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               pubGrades.highVocCert2,
               pubGrades.bachelor,
             ],
-            backgroundColor: '#7c3aed',
+            backgroundColor: '#eff571',
             borderRadius: 6,
           },
           {
@@ -185,15 +185,15 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16]">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16]">
               <BarChart3 className="w-4 h-4" />
               <span>Grade Level Distribution</span>
-            </div>
+            </div> */}
             <h3 className="text-lg sm:text-xl font-bold text-slate-900 mt-1">
               จำนวนนักเรียน นักศึกษา แยกตามระดับชั้นปี (ปวช. - ปวส. - ปริญญาตรี(ทล.บ.) ) {isFiltered && `ของ ${selectedInstName}`} 
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีม่วง) และสถานศึกษาภาคเอกชน (สีฟ้า) ตามหลัก Square Color Harmony
+              เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีแดงเลือดหมู) และสถานศึกษาภาคเอกชน (สีเหลือง) ตามหลัก Square Color Harmony
             </p>
           </div>
           <div className="flex items-center gap-3 sm:gap-4 text-xs font-semibold flex-wrap">
@@ -210,11 +210,11 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
 
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#7c3aed]" />
+                <span className="w-3 h-3 rounded-full bg-[#932d16]" />
                 <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#0284c7]" />
+                <span className="w-3 h-3 rounded-full bg-[#EFF571]" />
                 <span>เอกชน ({stats.institutions.private} แห่ง)</span>
               </span>
             </div>
@@ -260,10 +260,10 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 2: Horizontal Bar (ชาย-หญิง รายวิทยาลัย) */}
         <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Gender Comparison by College</span>
-            </div>
+            </div> */}
             <h3 className="text-lg font-bold text-slate-900">
               จำนวนยอดรวมนักเรียน ชาย - หญิง ของแต่ละวิทยาลัย
             </h3>
@@ -310,10 +310,10 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 3: Donut (สัดส่วน ชาย - หญิง ทั้งจังหวัด) */}
         <div className="lg:col-span-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#e11d48] mb-1">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#e11d48] mb-1">
               <PieChart className="w-4 h-4" />
               <span>Gender Ratio (Overall)</span>
-            </div>
+            </div> */}
             <h3 className="text-lg font-bold text-slate-900">
               สัดส่วนนักเรียน นักศึกษา ชาย - หญิง
             </h3>

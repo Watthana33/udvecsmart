@@ -219,10 +219,10 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
+          {/* <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
             <School className="w-3.5 h-3.5" />
             <span>Institution Directory</span>
-          </div>
+          </div> */}
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
             ทำเนียบสถานศึกษาในสังกัด สอจ.อุดรธานี
           </h2>

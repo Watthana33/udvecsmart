@@ -43,10 +43,10 @@ export const ContactSection: React.FC = () => {
       
       {/* Header */}
       <div>
-        <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
+        {/* <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#932d16] bg-[#932d16]/10 px-3.5 py-1 rounded-full mb-2">
           <Mail className="w-3.5 h-3.5" />
           <span>Get in Touch</span>
-        </div>
+        </div> */}
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
           ติดต่อเรา - สำนักงานอาชีวศึกษาจังหวัดอุดรธานี
         </h2>

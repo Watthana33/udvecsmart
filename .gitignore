@@ -20,6 +20,8 @@ out/
 .vscode/
 .idea/
 .kilo/
+.agents/
+skills-lock.json
 *.suo
 *.ntvs*
 *.njsproj

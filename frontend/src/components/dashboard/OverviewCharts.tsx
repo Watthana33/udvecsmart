@@ -32,7 +32,7 @@ const customDataLabelsPlugin = {
         const val = dataset.data[index];
         if (val !== undefined && val !== null && val > 0) {
           const formatted = Number(val).toLocaleString();
-          ctx.fillStyle = datasetIndex === 0 ? '#932d16' : '#a75d08';
+          ctx.fillStyle = datasetIndex === 0 ? '#932d16' : '#ad7f09';
           ctx.fillText(formatted, element.x, element.y - 4);
         }
       });
@@ -131,7 +131,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               privGrades.highVocCert2,
               privGrades.bachelor,
             ],
-            backgroundColor: '#eff571',
+            backgroundColor: '#fbbf24',
             borderRadius: 6,
           },
         ],
@@ -214,7 +214,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
                 <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#EFF571]" />
+                <span className="w-3 h-3 rounded-full bg-[#fbbf24]" />
                 <span>เอกชน ({stats.institutions.private} แห่ง)</span>
               </span>
             </div>

@@ -198,6 +198,8 @@ export async function incrementNewsView(id: string): Promise<{ status: string; d
 export async function updateInstitutionDirector(
   id: string,
   data: {
+    name?: string;
+    shortName?: string;
     directorName?: string;
     position?: string;
     photoUrl?: string;
@@ -217,6 +219,8 @@ export async function updateInstitutionDirector(
 export async function createInstitution(data: {
   code: string;
   name: string;
+  shortName?: string;
+  order?: number;
   type: 'PUBLIC' | 'PRIVATE';
   directorName?: string;
   phone?: string;
@@ -233,6 +237,12 @@ export async function createInstitution(data: {
 // Super Admin: ลบสถานศึกษา
 export async function deleteInstitution(id: string): Promise<any> {
   const res = await api.delete(`/institutions/${id}`);
+  return res.data;
+}
+
+// Super Admin: ปรับลำดับการแสดงผลสถานศึกษา
+export async function reorderInstitutions(orderedIds: string[]): Promise<any> {
+  const res = await api.put('/institutions/reorder', { orderedIds });
   return res.data;
 }
 

@@ -29,9 +29,9 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
   const { students, graduatesEmployment } = stats;
 
   // 1. Chart 1 Data: Horizontal Bar (มีงานทำ vs ว่างงาน รายวิทยาลัย)
-  const displayInstitutions = institutionStats.slice(0, 15);
+  const displayInstitutions = institutionStats;
   const collegeEmploymentData = {
-    labels: displayInstitutions.map((i) => i.institution.name.replace('วิทยาลัย', 'ว.')),
+    labels: displayInstitutions.map((i) => i.institution.shortName || i.institution.name.replace('วิทยาลัย', 'ว.')),
     datasets: [
       {
         label: 'มีงานทำ (คน)',
@@ -304,7 +304,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
           </div>
         </div>
 
-        <div className="h-96 w-full">
+        <div className="w-full" style={{ minHeight: '384px', height: `${Math.max(384, displayInstitutions.length * 28)}px` }}>
           <Bar
             data={collegeEmploymentData}
             options={{

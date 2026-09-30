@@ -42,6 +42,8 @@ model Institution {
   id          String          @id @default(uuid())
   code        String          @unique // รหัสสถานศึกษา 10 หลัก
   name        String          // ชื่อสถานศึกษา
+  shortName   String?         // ชื่อย่อสถานศึกษา (เช่น ว.เทคนิคอุดรธานี) สำหรับแสดงผลในกราฟ
+  order       Int             @default(0) // ลำดับสำหรับจัดเรียงแสดงผล
   type        InstitutionType @default(PUBLIC)
   logoUrl     String?
   website     String?

@@ -14,6 +14,8 @@ export interface Institution {
   id: string;
   code: string;
   name: string;
+  shortName?: string | null;
+  order?: number;
   type: InstitutionType;
   logoUrl: string | null;
   website: string | null;
@@ -115,6 +117,8 @@ export interface InstitutionStatItem {
     id: string;
     code: string;
     name: string;
+    shortName?: string | null;
+    order?: number;
     type: InstitutionType;
     logoUrl: string | null;
   };
@@ -175,6 +179,8 @@ export interface SubmissionStatusItem {
   id: string;
   code: string;
   name: string;
+  shortName?: string | null;
+  order?: number;
   type: InstitutionType;
   phone: string | null;
   programsCount: number;

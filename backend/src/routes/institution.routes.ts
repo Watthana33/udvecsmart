@@ -5,11 +5,15 @@ import {
   updateInstitutionDirector,
   createInstitution,
   deleteInstitution,
+  reorderInstitutions,
 } from '../controllers/institution.controller.js';
 import { authenticateJWT, requireRole } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
 
 const router = Router();
+
+// PUT /api/institutions/reorder - จัดเรียงลำดับสถานศึกษา (เฉพาะ SUPER_ADMIN)
+router.put('/reorder', authenticateJWT, requireRole([Role.SUPER_ADMIN]), reorderInstitutions);
 
 // GET /api/institutions - รายชื่อสถานศึกษาทั้งหมด (รองรับ ?search= และ ?type=)
 router.get('/', getInstitutions);

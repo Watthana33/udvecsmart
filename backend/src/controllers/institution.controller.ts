@@ -32,6 +32,8 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         id: true,
         code: true,
         name: true,
+        shortName: true,
+        order: true,
         type: true,
         logoUrl: true,
         website: true,
@@ -59,6 +61,7 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         },
       },
       orderBy: [
+        { order: 'asc' },
         { type: 'asc' },
         { code: 'asc' },
       ],
@@ -146,12 +149,14 @@ export async function updateInstitutionDirector(req: AuthRequest, res: Response)
       return;
     }
 
-    const { directorName, position, photoUrl, phone, website, address, programsCount, programsList, programsUrl } = req.body;
+    const { name, shortName, directorName, position, photoUrl, phone, website, address, programsCount, programsList, programsUrl } = req.body;
 
     // 1. อัปเดตข้อมูลสถานศึกษา
     const updatedInst = await prisma.institution.update({
       where: { id },
       data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(shortName !== undefined ? { shortName } : {}),
         ...(phone !== undefined ? { phone } : {}),
         ...(website !== undefined ? { website } : {}),
         ...(address !== undefined ? { address } : {}),
@@ -226,7 +231,7 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const { code, name, type, directorName, phone, website, address, programsCount, programsList, programsUrl } = req.body;
+    const { code, name, shortName, order, type, directorName, phone, website, address, programsCount, programsList, programsUrl } = req.body;
 
     if (!code || !name) {
       res.status(400).json({
@@ -245,10 +250,18 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
       return;
     }
 
+    let finalOrder = order ? Number(order) : undefined;
+    if (finalOrder === undefined) {
+      const maxOrder = await prisma.institution.aggregate({ _max: { order: true } });
+      finalOrder = (maxOrder._max.order || 0) + 1;
+    }
+
     const newInst = await prisma.institution.create({
       data: {
         code,
         name,
+        shortName: shortName || name.replace('วิทยาลัย', 'ว.'),
+        order: finalOrder,
         type: type === 'PRIVATE' ? InstitutionType.PRIVATE : InstitutionType.PUBLIC,
         phone: phone || null,
         website: website || null,
@@ -373,5 +386,53 @@ export async function deleteInstitution(req: AuthRequest, res: Response): Promis
     });
   }
 }
+
+/**
+ * ปรับปรุงลำดับการแสดงผลของสถานศึกษา (สำหรับ SUPER_ADMIN)
+ * PUT /api/institutions/reorder
+ */
+export async function reorderInstitutions(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (req.user?.role !== Role.SUPER_ADMIN) {
+      res.status(403).json({
+        status: 'error',
+        message: 'มีเพียงผู้ดูแลระบบ สอจ. เท่านั้นที่มีสิทธิ์จัดเรียงลำดับสถานศึกษา',
+      });
+      return;
+    }
+
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      res.status(400).json({
+        status: 'error',
+        message: 'กรุณาระบุ orderedIds เป็นอาร์เรย์ของ ID สถานศึกษา',
+      });
+      return;
+    }
+
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.institution.update({
+          where: { id },
+          data: { order: index + 1 },
+        })
+      )
+    );
+
+    res.json({
+      status: 'success',
+      message: 'ปรับปรุงลำดับการแสดงผลสถานศึกษาเรียบร้อยแล้ว',
+      data: orderedIds,
+    });
+  } catch (error: any) {
+    console.error('reorderInstitutions error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถปรับลำดับสถานศึกษาได้',
+      detail: error.message,
+    });
+  }
+}
+
 
 

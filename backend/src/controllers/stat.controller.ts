@@ -211,35 +211,72 @@ export async function getStatsByInstitution(req: Request, res: Response): Promis
     let academicYear = req.query.academicYear ? Number(req.query.academicYear) : 2568;
     let semester = req.query.semester ? Number(req.query.semester) : 1;
 
+    // 1. ดึงสถานศึกษาทั้งหมด เรียงลำดับตาม order ที่จัดไว้
+    const institutions = await prisma.institution.findMany({
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        shortName: true,
+        order: true,
+        type: true,
+        logoUrl: true,
+        website: true,
+        phone: true,
+      },
+      orderBy: [
+        { order: 'asc' },
+        { type: 'asc' },
+        { code: 'asc' },
+      ],
+    });
+
+    // 2. ดึงสถิติของปีการศึกษาและภาคเรียนนั้น
     const stats = await prisma.schoolStat.findMany({
       where: {
         academicYear,
         semester,
       },
-      include: {
-        institution: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            type: true,
-            logoUrl: true,
-            website: true,
-            phone: true,
-          },
-        },
-      },
-      orderBy: {
-        totalStudents: 'desc',
-      },
+    });
+
+    const statMap = new Map(stats.map((s) => [s.institutionId, s]));
+
+    // 3. จัดโครงสร้างข้อมูลให้ครบทุกสถานศึกษาตามลำดับที่จัดเรียง
+    const formattedStats = institutions.map((inst) => {
+      const s = statMap.get(inst.id);
+      return {
+        id: s?.id || `stat-${inst.id}`,
+        institutionId: inst.id,
+        academicYear,
+        semester,
+        totalStudents: s?.totalStudents ?? 0,
+        maleStudents: s?.maleStudents ?? 0,
+        femaleStudents: s?.femaleStudents ?? 0,
+        vocCert1: s?.vocCert1 ?? 0,
+        vocCert2: s?.vocCert2 ?? 0,
+        vocCert3: s?.vocCert3 ?? 0,
+        highVocCert1: s?.highVocCert1 ?? 0,
+        highVocCert2: s?.highVocCert2 ?? 0,
+        bachelorCount: s?.bachelorCount ?? 0,
+        totalExecutives: s?.totalExecutives ?? 1,
+        totalTeachers: s?.totalTeachers ?? 0,
+        totalStaff: s?.totalStaff ?? 0,
+        employedGraduatesCount: s?.employedGraduatesCount ?? 0,
+        unemployedCount: s?.unemployedCount ?? 0,
+        furtherStudyCount: s?.furtherStudyCount ?? 0,
+        employedInField: s?.employedInField ?? 0,
+        employedOutField: s?.employedOutField ?? 0,
+        employedFreelance: s?.employedFreelance ?? 0,
+        institution: inst,
+      };
     });
 
     res.json({
       status: 'success',
       academicYear,
       semester,
-      total: stats.length,
-      data: stats,
+      total: formattedStats.length,
+      data: formattedStats,
     });
   } catch (error: any) {
     console.error('getStatsByInstitution error:', error);
@@ -659,11 +696,13 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
           id: true,
           code: true,
           name: true,
+          shortName: true,
+          order: true,
           type: true,
           phone: true,
           programsCount: true,
         },
-        orderBy: [{ type: 'asc' }, { code: 'asc' }],
+        orderBy: [{ order: 'asc' }, { type: 'asc' }, { code: 'asc' }],
       }),
       prisma.schoolStat.findMany({
         where: {
@@ -727,6 +766,8 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
         id: inst.id,
         code: inst.code,
         name: inst.name,
+        shortName: inst.shortName,
+        order: inst.order,
         type: inst.type,
         phone: inst.phone,
         programsCount: inst.programsCount,

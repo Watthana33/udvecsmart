@@ -138,10 +138,10 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
       };
 
   // 2. Data for Horizontal Bar Chart (นักเรียน ชาย-หญิง ของแต่ละวิทยาลัย)
-  // ตัดแสดงเฉพาะวิทยาลัยที่มีข้อมูล (จัดเรียงตามจำนวนนักเรียน)
-  const displayInstitutions = institutionStats.slice(0, 15); // แสดง 15 วิทยาลัยชั้นนำเพื่อความกระชับ
+  // แสดงสถานศึกษาตามลำดับที่จัดเรียงไว้ในระบบ
+  const displayInstitutions = institutionStats;
   const horizontalChartData = {
-    labels: displayInstitutions.map((i) => i.institution.name.replace('วิทยาลัย', 'ว.')),
+    labels: displayInstitutions.map((i) => i.institution.shortName || i.institution.name.replace('วิทยาลัย', 'ว.')),
     datasets: [
       {
         label: 'ชาย (คน)',
@@ -272,7 +272,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
             </p>
           </div>
 
-          <div className="h-96 w-full">
+          <div className="w-full" style={{ minHeight: '384px', height: `${Math.max(384, displayInstitutions.length * 28)}px` }}>
             <Bar
               data={horizontalChartData}
               options={{

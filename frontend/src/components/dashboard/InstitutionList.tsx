@@ -56,6 +56,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
 
   // State สำหรับ Modal แก้ไขข้อมูล/ภาพถ่ายผู้บริหาร
   const [editingInst, setEditingInst] = useState<Institution | null>(null);
+  const [instName, setInstName] = useState('');
+  const [instShortName, setInstShortName] = useState('');
   const [directorName, setDirectorName] = useState('');
   const [directorPosition, setDirectorPosition] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -80,6 +82,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
 
   const openEditModal = (inst: Institution) => {
     setEditingInst(inst);
+    setInstName(inst.name || '');
+    setInstShortName(inst.shortName || '');
     const p = inst.personnels?.[0];
     setDirectorName(p?.name || '');
     setDirectorPosition(p?.position || 'ผู้อำนวยการวิทยาลัย');
@@ -164,6 +168,8 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
     try {
       setIsSaving(true);
       await updateInstitutionDirector(editingInst.id, {
+        name: instName.trim() || undefined,
+        shortName: instShortName.trim() || undefined,
         directorName,
         position: directorPosition,
         photoUrl,
@@ -663,6 +669,30 @@ export const InstitutionList: React.FC<InstitutionListProps> = ({
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Institution Name & Short Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">ชื่อสถานศึกษา</label>
+                  <input
+                    type="text"
+                    required
+                    value={instName}
+                    onChange={(e) => setInstName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">ชื่อย่อสถานศึกษา (สำหรับแสดงผลในกราฟ)</label>
+                  <input
+                    type="text"
+                    value={instShortName}
+                    onChange={(e) => setInstShortName(e.target.value)}
+                    placeholder="เช่น ว.เทคนิคอุดรธานี"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  />
                 </div>
               </div>
 

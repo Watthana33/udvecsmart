@@ -24,6 +24,7 @@ import {
   deleteUser,
   createInstitution,
   deleteInstitution,
+  reorderInstitutions,
   getAcademicPeriods,
   createAcademicPeriod,
   deleteAcademicPeriod,
@@ -121,6 +122,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [showAddInstitutionModal, setShowAddInstitutionModal] = useState(false);
   const [newInstCode, setNewInstCode] = useState('');
   const [newInstName, setNewInstName] = useState('');
+  const [newInstShortName, setNewInstShortName] = useState('');
   const [newInstType, setNewInstType] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [newInstDirector, setNewInstDirector] = useState('');
   const [newInstPhone, setNewInstPhone] = useState('');
@@ -1063,6 +1065,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       await createInstitution({
         code: newInstCode,
         name: newInstName,
+        shortName: newInstShortName || undefined,
         type: newInstType,
         directorName: newInstDirector,
         phone: newInstPhone,
@@ -1073,12 +1076,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setShowAddInstitutionModal(false);
       setNewInstCode('');
       setNewInstName('');
+      setNewInstShortName('');
       setNewInstDirector('');
       setNewInstPhone('');
       setNewInstWebsite('');
       setNewInstProgramsCount(12);
       setNewInstProgramsUrl('');
       loadSuperAdminData();
+      onRefreshStats(selectedYear, selectedSemester);
       showToast('success', 'เพิ่มสถานศึกษาสำเร็จ!', `เพิ่ม ${newInstName} เข้าระบบเรียบร้อยแล้ว`);
     } catch (err: any) {
       showToast('error', 'ไม่สามารถเพิ่มสถานศึกษาได้', err.response?.data?.message || err.message);
@@ -1100,10 +1105,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         setEditingCollege(null);
       }
       loadSuperAdminData();
+      onRefreshStats(selectedYear, selectedSemester);
       showToast('success', 'ลบสถานศึกษาสำเร็จ', `ลบสถานศึกษา "${college.name}" ออกจากระบบเรียบร้อยแล้ว`);
     } catch (err: any) {
       console.error('Failed to delete institution:', err);
       showToast('error', 'ไม่สามารถลบสถานศึกษาได้', err.response?.data?.message || err.message);
+    }
+  };
+
+  // Super Admin: Move Institution Order Up / Down
+  const handleMoveInstitution = async (id: string, direction: 'UP' | 'DOWN') => {
+    const currentIndex = submissionStatuses.findIndex((s) => s.id === id);
+    if (currentIndex < 0) return;
+    const targetIndex = direction === 'UP' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= submissionStatuses.length) return;
+
+    const nextList = [...submissionStatuses];
+    const [moved] = nextList.splice(currentIndex, 1);
+    nextList.splice(targetIndex, 0, moved);
+
+    setSubmissionStatuses(nextList);
+    try {
+      const orderedIds = nextList.map((s) => s.id);
+      await reorderInstitutions(orderedIds);
+      onRefreshStats(selectedYear, selectedSemester);
+      showToast('success', 'จัดเรียงลำดับสำเร็จ', `ปรับลำดับ "${moved.name}" เรียบร้อยแล้ว`);
+    } catch (err: any) {
+      console.error('Failed to reorder institutions:', err);
+      showToast('error', 'ไม่สามารถปรับลำดับสถานศึกษาได้', err.response?.data?.message || err.message);
+      loadSuperAdminData();
     }
   };
 
@@ -1580,6 +1610,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
+                    <th className="py-3 px-3 text-center w-24">ลำดับ</th>
                     <th className="py-3 px-4">รหัส</th>
                     <th className="py-3 px-4">ชื่อสถานศึกษา</th>
                     <th className="py-3 px-4">ประเภท</th>
@@ -1594,21 +1625,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {loadingStatuses ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                      <td colSpan={10} className="py-8 text-center text-slate-400">
                         กำลังโหลดข้อมูลสถานศึกษา...
                       </td>
                     </tr>
                   ) : filteredStatuses.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-400">
+                      <td colSpan={10} className="py-8 text-center text-slate-400">
                         ไม่พบสถานศึกษาที่ตรงกับคำค้นหา
                       </td>
                     </tr>
                   ) : (
-                    filteredStatuses.map((item) => (
+                    filteredStatuses.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-500 text-xs w-6">{index + 1}</span>
+                            <div className="flex flex-col">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => handleMoveInstitution(item.id, 'UP')}
+                                className="p-0.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                                title="เลื่อนขึ้น"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === filteredStatuses.length - 1}
+                                onClick={() => handleMoveInstitution(item.id, 'DOWN')}
+                                className="p-0.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                                title="เลื่อนลง"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
                         <td className="py-3.5 px-4 font-mono font-bold text-slate-600">{item.code}</td>
-                        <td className="py-3.5 px-4 font-extrabold text-slate-900">{item.name}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-extrabold text-slate-900">{item.name}</div>
+                          {item.shortName && item.shortName !== item.name && (
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                              ชื่อย่อในกราฟ: <span className="font-bold text-[#932d16]">{item.shortName}</span>
+                            </div>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -4008,6 +4071,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   placeholder="เช่น วิทยาลัยเทคนิคอุดรธานี 2"
                   value={newInstName}
                   onChange={(e) => setNewInstName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ชื่อย่อสถานศึกษา (สำหรับแสดงผลในกราฟ)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น ว.เทคนิคอุดรธานี 2 (ถ้าเว้นว่างจะตัดคำว่าวิทยาลัยเป็น ว. อัตโนมัติ)"
+                  value={newInstShortName}
+                  onChange={(e) => setNewInstShortName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                 />
               </div>

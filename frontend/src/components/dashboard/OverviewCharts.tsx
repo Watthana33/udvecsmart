@@ -11,7 +11,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { StatsOverview, InstitutionStatItem } from '../../types';
-import { BarChart3, PieChart, TrendingUp, Users } from 'lucide-react';
+// import { BarChart3, PieChart, TrendingUp, Users } from 'lucide-react';
 
 // Custom plugin to render exact numbers on top of chart bars when enabled
 const customDataLabelsPlugin = {
@@ -336,7 +336,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
             />
             {/* Center Summary */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
-              <Users className="w-5 h-5 text-slate-400 mb-1" />
+              {/* <Users className="w-5 h-5 text-slate-400 mb-1" /> */}
               <span className="text-xs text-slate-400">รวมทั้งหมด</span>
               <span className="text-base font-extrabold text-slate-900">
                 {stats.students.total.toLocaleString()}

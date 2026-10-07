@@ -5,7 +5,21 @@ import process from 'node:process';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting Comprehensive Database Seeding for UDVECSmart (29 Colleges)...');
+  console.log('🌱 Starting Comprehensive Database Seeding for UDVECSmart...');
+
+  // 🛡️ Guard Check: ป้องกันการรันซ้ำเมื่อ Server รีสตาร์ทหรือเปิดเครื่องใหม่
+  // หากพบว่ามี SUPER_ADMIN อยู่แล้ว แสดงว่าระบบเคย Seed ข้อมูลแล้ว ให้ข้ามทันทีเพื่อไม่ให้ข้อมูลที่ถูกลบหรือแก้ไขฟื้นคืนชีพ
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { role: Role.SUPER_ADMIN },
+  });
+
+  if (existingSuperAdmin) {
+    console.log(`⚠️ ระบบเคยติดตั้งข้อมูลแล้ว (พบ SUPER_ADMIN: ${existingSuperAdmin.email})`);
+    console.log('⏭️ ข้ามขั้นตอน Database Seeding เพื่อรักษาข้อมูลล่าสุดและป้องกันข้อมูลเก่าฟื้นคืนชีพ');
+    return;
+  }
+
+  console.log('📦 ไม่พบข้อมูลตั้งต้น เริ่มต้นนำเข้าข้อมูลวิทยาลัย 29 แห่ง และบัญชีผู้ดูแลระบบ...');
 
   // 1. สร้างรหัสผ่านที่เข้ารหัสด้วย bcrypt
   const salt = await bcrypt.genSalt(10);

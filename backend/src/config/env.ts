@@ -11,3 +11,10 @@ export const ENV = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
 };
+
+// ตรวจสอบความปลอดภัยของ JWT_SECRET ในโหมด Production
+if (ENV.NODE_ENV === 'production' && (!process.env.JWT_SECRET || ENV.JWT_SECRET === 'fallback-secret-key')) {
+  console.warn(
+    '⚠️ [SECURITY WARNING] ระบบกำลังใช้งาน JWT_SECRET ค่าเริ่มต้น! กรุณาตั้งค่า JWT_SECRET สุ่มความยาวอย่างน้อย 32 ตัวอักษรในไฟล์ .env บน Production เพื่อความปลอดภัย'
+  );
+}

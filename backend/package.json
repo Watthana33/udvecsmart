@@ -15,7 +15,13 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
-  "keywords": ["express", "prisma", "postgresql", "typescript", "udpvecsmart"],
+  "keywords": [
+    "express",
+    "prisma",
+    "postgresql",
+    "typescript",
+    "udpvecsmart"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -24,6 +30,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2"

@@ -10,18 +10,31 @@ import settingRoutes from './routes/setting.routes.js';
 import contactRoutes from './routes/contact.routes.js';
 import userRoutes from './routes/user.routes.js';
 import dveAndCareerRoutes from './routes/dveAndCareer.routes.js';
+import helmet from 'helmet';
+import { generalLimiter } from './middlewares/rateLimiter.js';
 
 const app = express();
 
-// Middlewares
+// 1. Security Headers: ป้องกัน Clickjacking, Sniffing, ปิด X-Powered-By
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // ปิด CSP เพื่อไม่ให้กระทบการโหลดรูปภาพโลโก้และแบบฟอร์มภายนอก
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// 2. DDoS & Traffic Flooding Protection สำหรับทุก API endpoint
+app.use('/api', generalLimiter);
+
+// 3. Middlewares
 app.use(
   cors({
     origin: ENV.CORS_ORIGIN,
     credentials: true,
   })
 );
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // API Routes
 app.use('/api/auth', authRoutes);

@@ -323,9 +323,18 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
               scales: {
                 x: {
                   stacked: true,
+                  beginAtZero: true,
+                  suggestedMax: 5,
                   ticks: {
+                    precision: 0,
+                    stepSize: 1,
                     font: { family: 'Sarabun' },
-                    callback: (v) => `${Number(v).toLocaleString()} คน`,
+                    callback: (v: any) => {
+                      if (Number.isInteger(Number(v))) {
+                        return `${Number(v).toLocaleString()} คน`;
+                      }
+                      return '';
+                    },
                   },
                 },
                 y: {
@@ -376,9 +385,17 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
                   x: { grid: { display: false }, ticks: { font: { family: 'Sarabun', size: 11 } } },
                   y: {
                     beginAtZero: true,
+                    suggestedMax: 5,
                     ticks: {
+                      precision: 0,
+                      stepSize: 1,
                       font: { family: 'Sarabun' },
-                      callback: (v) => `${Number(v).toLocaleString()} คน`,
+                      callback: (v: any) => {
+                        if (Number.isInteger(Number(v))) {
+                          return `${Number(v).toLocaleString()} คน`;
+                        }
+                        return '';
+                      },
                     },
                   },
                 },

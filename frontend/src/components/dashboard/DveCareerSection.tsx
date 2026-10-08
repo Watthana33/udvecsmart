@@ -176,9 +176,19 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
       scales: {
         x: {
           grid: { color: '#f1f5f9' },
+          beginAtZero: true,
+          suggestedMax: 5,
           ticks: {
+            precision: 0,
+            stepSize: 1,
             font: { family: 'Prompt, sans-serif', size: 11 },
             color: '#64748b',
+            callback: (value: any) => {
+              if (Number.isInteger(Number(value))) {
+                return `${Number(value).toLocaleString()} คน`;
+              }
+              return '';
+            },
           },
         },
         y: {
@@ -1165,9 +1175,19 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                             },
                             y: {
                               grid: { color: '#f1f5f9' },
+                              beginAtZero: true,
+                              suggestedMax: 5,
                               ticks: {
+                                precision: 0,
+                                stepSize: 1,
                                 font: { family: 'Prompt, sans-serif', size: 11 },
                                 color: '#64748b',
+                                callback: (value: any) => {
+                                  if (Number.isInteger(Number(value))) {
+                                    return `${Number(value).toLocaleString()} คน`;
+                                  }
+                                  return '';
+                                },
                               },
                             },
                           },

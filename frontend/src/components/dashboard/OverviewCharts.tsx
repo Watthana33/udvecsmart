@@ -243,9 +243,17 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
                 x: { grid: { display: false }, ticks: { font: { family: 'Sarabun', size: 12 } } },
                 y: {
                   beginAtZero: true,
+                  suggestedMax: 5,
                   ticks: {
+                    precision: 0,
+                    stepSize: 1,
                     font: { family: 'Sarabun' },
-                    callback: (value: any) => `${Number(value).toLocaleString()} คน`,
+                    callback: (value: any) => {
+                      if (Number.isInteger(Number(value))) {
+                        return `${Number(value).toLocaleString()} คน`;
+                      }
+                      return '';
+                    },
                   },
                 },
               },
@@ -291,9 +299,18 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
                 scales: {
                   x: {
                     stacked: true,
+                    beginAtZero: true,
+                    suggestedMax: 5,
                     ticks: {
+                      precision: 0,
+                      stepSize: 1,
                       font: { family: 'Sarabun' },
-                      callback: (v) => `${Number(v).toLocaleString()} คน`,
+                      callback: (v: any) => {
+                        if (Number.isInteger(Number(v))) {
+                          return `${Number(v).toLocaleString()} คน`;
+                        }
+                        return '';
+                      },
                     },
                   },
                   y: {

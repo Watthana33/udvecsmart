@@ -55,12 +55,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         
         {/* Left: Filter Title & Active Status */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="p-2.5 bg-[#932d16]/10 text-[#932d16] rounded-xl">
+          <div className="p-2.5 bg-hx-932d16/10 text-hx-932d16 rounded-xl">
             <Filter className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#932d16]">
+              <span className="text-xs font-bold uppercase tracking-wider text-hx-932d16">
                 ตัวกรองสถิติและข้อมูล
               </span>
               {/* <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
@@ -85,7 +85,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer shadow-xs"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16 transition-all cursor-pointer shadow-xs"
               title="เลือกปีการศึกษา"
             >
               {availableYears.map((y) => (
@@ -102,7 +102,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <select
               value={selectedSemester}
               onChange={(e) => setSelectedSemester(Number(e.target.value))}
-              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer shadow-xs"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16 transition-all cursor-pointer shadow-xs"
               title="เลือกภาคเรียน"
             >
               {availableSemesters.map((s) => (
@@ -116,11 +116,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
           {/* 3. Institution Selector (Wider) */}
           <div className="sm:col-span-6 relative">
-            <School className="w-4 h-4 text-[#932d16] stroke-[1.8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <School className="w-4 h-4 text-hx-932d16 stroke-[1.8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedInstitutionId}
               onChange={(e) => setSelectedInstitutionId(e.target.value)}
-              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] transition-all cursor-pointer truncate shadow-xs"
+              className="w-full text-xs font-bold bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16 transition-all cursor-pointer truncate shadow-xs"
               title="เลือกสถานศึกษา"
             >
               <option value="ALL">แสดงทุกสถานศึกษาในจังหวัด</option>
@@ -147,7 +147,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         {selectedInstitutionId !== 'ALL' && (
           <button
             onClick={() => setSelectedInstitutionId('ALL')}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-[#932d16]/10 text-xs font-semibold text-[#932d16] rounded-xl transition-all shrink-0 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-hx-932d16/10 text-xs font-semibold text-hx-932d16 rounded-xl transition-all shrink-0 cursor-pointer"
             title="ล้างการเลือกวิทยาลัยเพื่อดูภาพรวมทั้งจังหวัด"
           >
             <RotateCcw className="w-3.5 h-3.5" />

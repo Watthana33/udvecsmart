@@ -217,7 +217,7 @@ export const OfficialReportPrintModal: React.FC<OfficialReportPrintModalProps> =
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-[#932d16] hover:bg-[#7a2411] text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2 bg-hx-932d16 hover:bg-hx-7a2411 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>พิมพ์รายงาน / บันทึกเป็น PDF</span>
@@ -262,7 +262,7 @@ export const OfficialReportPrintModal: React.FC<OfficialReportPrintModalProps> =
                 สำนักงานอาชีวศึกษาจังหวัดอุดรธานี
               </h2>
               {isSingleSchool ? (
-                <h3 className="text-sm font-bold text-[#932d16]">
+                <h3 className="text-sm font-bold text-hx-932d16">
                   {targetSchool?.name} (รหัสสถานศึกษา: {targetSchool?.code})
                 </h3>
               ) : (
@@ -295,7 +295,7 @@ export const OfficialReportPrintModal: React.FC<OfficialReportPrintModalProps> =
                     <div>ตำแหน่ง: <strong>{targetSchool?.personnels?.[0]?.position || 'ผู้อำนวยการวิทยาลัย'}</strong></div>
                     <div>เบอร์โทรศัพท์: <strong>{targetSchool?.phone || schoolForm?.phone || '-'}</strong></div>
                     <div>เว็บไซต์: <strong>{targetSchool?.website || schoolForm?.website || '-'}</strong></div>
-                    <div>จำนวนสาขาวิชาที่เปิดสอน: <strong>{schoolForm?.programsCount || targetSchool?.programsCount || 12}</strong> สาขา</div>
+                    <div>จำนวนสาขาวิชาที่เปิดสอน: <strong>{schoolForm?.programsCount ?? targetSchool?.programsCount ?? 0}</strong> สาขา</div>
                     <div>จำนวนผู้บริหาร: <strong>{schoolForm?.totalExecutives || 1}</strong> คน</div>
                     <div>จำนวนครูผู้สอน: <strong>{schoolForm?.totalTeachers || 0}</strong> คน</div>
                     <div>จำนวนบุคลากรทางการศึกษา: <strong>{schoolForm?.totalStaff || 0}</strong> คน</div>

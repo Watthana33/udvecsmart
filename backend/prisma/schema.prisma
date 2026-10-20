@@ -130,6 +130,8 @@ model SchoolStat {
   civilTeachersFemale    Int         @default(0) // ข้าราชการครู หญิง
   hiredTeachersMale      Int         @default(0) // ครูอัตราจ้าง ชาย
   hiredTeachersFemale    Int         @default(0) // ครูอัตราจ้าง หญิง
+  govEmpTeachersMale     Int         @default(0) // พนักงานราชการ (ครู) ชาย
+  govEmpTeachersFemale   Int         @default(0) // พนักงานราชการ (ครู) หญิง
 
   // ข้อมูลผู้สำเร็จการศึกษา
   gradVocCertCount       Int         @default(0) // ปวช. สำเร็จการศึกษา
@@ -244,4 +246,20 @@ model ContactMessage {
   createdAt DateTime @default(now())
 
   @@map("contact_messages")
+}
+
+// รูปที่อัปโหลดผ่านหน้าแอดมิน: เก็บไฟล์ต้นฉบับไว้บนดิสก์ (UPLOAD_DIR/<id>/original.*) ไม่ย่อ ไม่บีบ
+// พร้อมรูปแสดงผล (display.jpg) และรูปย่อ (thumb.jpg) ที่ระบบสร้างให้
+model UploadedImage {
+  id           String   @id @default(uuid())
+  originalName String   // ชื่อไฟล์เดิมตอนอัปโหลด
+  mime         String   // image/jpeg, image/png, ...
+  ext          String   // นามสกุลไฟล์ต้นฉบับที่เก็บ เช่น jpg, png
+  size         Int      // ขนาดไฟล์ต้นฉบับ (ไบต์)
+  width        Int      // ความกว้างต้นฉบับ (พิกเซล)
+  height       Int      // ความสูงต้นฉบับ (พิกเซล)
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@map("uploaded_images")
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { BannerSection } from './components/dashboard/BannerSection';
+import { resolveContact } from './utils/siteContact';
 import { OverviewHero } from './components/dashboard/OverviewHero';
 import { FilterBar } from './components/dashboard/FilterBar';
 import { StatCards } from './components/dashboard/StatCards';
@@ -14,7 +15,8 @@ import { DveCareerHero } from './components/dashboard/DveCareerHero';
 import { ContactSection } from './components/dashboard/ContactSection';
 import { AdminPortal } from './components/portal/AdminPortal';
 import { LoginModal } from './components/auth/LoginModal';
-import { FloatingPortalButton } from './components/layout/FloatingPortalButton';
+import { WelcomeGate, resolveWelcomeBadge } from './components/appearance/WelcomeGate';
+import { MourningRibbon } from './components/appearance/MourningRibbon';
 
 import {
   getStatsOverview,
@@ -23,6 +25,8 @@ import {
   getNewsList,
   getMe,
   getAcademicPeriods,
+  getSettings,
+  API_BASE_URL,
 } from './services/api';
 import {
   StatsOverview,
@@ -31,12 +35,99 @@ import {
   UserProfile,
   InstitutionStatItem,
   AcademicPeriodItem,
+  SiteSettings,
 } from './types';
+
+const THEME_CACHE_KEY = 'udpvecsmart_site_theme';
+
+// แต่ละแท็บมี URL ของตัวเอง (สลับหน้าแบบไม่โหลดใหม่ด้วย History API; nginx ส่งทุก path กลับ index.html อยู่แล้ว)
+const TAB_PATHS: Record<string, string> = {
+  overview: '/',
+  dve_career: '/dve-career',
+  employment: '/employment',
+  institutions: '/institutions',
+  contact: '/contact',
+  portal: '/portal',
+};
+
+const TAB_TITLES: Record<string, string> = {
+  overview: 'ข้อมูลพื้นฐาน',
+  dve_career: 'ทวิภาคี & ห้องเรียนอาชีพ',
+  employment: 'ภาวะการมีงานทำ',
+  institutions: 'สถานศึกษาในสังกัด',
+  contact: 'ติดต่อเรา',
+  portal: 'ระบบจัดการข้อมูล',
+};
+
+const BASE_TITLE = 'สำนักงานอาชีวศึกษาจังหวัดอุดรธานี - UDPVECSmart';
+
+function pathToTab(pathname: string): string {
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  return Object.keys(TAB_PATHS).find((tab) => TAB_PATHS[tab] === clean) || 'overview';
+}
+
+// หน้าข่าวสารก่อนเข้าเว็บ: จำว่าผู้เข้าชมกดเข้าไปแล้วเพียง 1 ชั่วโมง (และถ้าแอดมินแก้เนื้อหา เลขเวอร์ชันเปลี่ยน จะแสดงใหม่)
+const WELCOME_SEEN_KEY = 'udpvecsmart_welcome_seen';
+const WELCOME_REMEMBER_MS = 60 * 60 * 1000;
+
+function wasWelcomeSeenRecently(version: string): boolean {
+  try {
+    const raw = localStorage.getItem(WELCOME_SEEN_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw) as { at?: number; version?: string };
+    return saved.version === version && typeof saved.at === 'number' && Date.now() - saved.at < WELCOME_REMEMBER_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markWelcomeSeen(version: string) {
+  try {
+    localStorage.setItem(WELCOME_SEEN_KEY, JSON.stringify({ at: Date.now(), version }));
+  } catch {
+    /* ใช้ localStorage ไม่ได้ก็แสดงตามปกติทุกครั้ง */
+  }
+}
+
+// ใส่/ถอดคลาสธีมที่ <html> (สไตล์อยู่ใน index.css)
+function applySiteTheme(theme: string | undefined) {
+  const root = document.documentElement;
+  root.classList.remove('theme-mono', 'theme-gray');
+  if (theme === 'mono' || theme === 'gray') root.classList.add(`theme-${theme}`);
+}
 
 export function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [activeTab, setActiveTabState] = useState<string>(() => pathToTab(window.location.pathname));
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // เปลี่ยนแท็บ + เปลี่ยน URL (ไม่โหลดหน้าใหม่) ให้ปุ่มย้อนกลับ/ลิงก์ตรง/รีเฟรชใช้งานได้
+  const setActiveTab = useCallback((tab: string, replace = false) => {
+    setActiveTabState(tab);
+    const path = TAB_PATHS[tab] || '/';
+    if (window.location.pathname !== path) {
+      if (replace) window.history.replaceState(null, '', path);
+      else window.history.pushState(null, '', path);
+    }
+  }, []);
+
+  // ปุ่มย้อนกลับ/เดินหน้าของเบราว์เซอร์
+  useEffect(() => {
+    const onPop = () => setActiveTabState(pathToTab(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // ชื่อแท็บของเบราว์เซอร์ตามหน้าปัจจุบัน
+  useEffect(() => {
+    document.title = activeTab === 'overview' ? BASE_TITLE : `${TAB_TITLES[activeTab]} - UDPVECSmart`;
+  }, [activeTab]);
+
+  // รูปลักษณ์เว็บ: ธีมไว้อาลัย & หน้าข่าวสารก่อนเข้าเว็บ (ตั้งค่าจากหลังบ้าน)
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   // Academic Periods State
   const [academicPeriods, setAcademicPeriods] = useState<AcademicPeriodItem[]>([]);
@@ -58,6 +149,37 @@ export function App() {
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
 
+  // ให้ส่วนหัวเว้นที่ให้ริบบิ้นไว้อาลัยมุมขวาบน (สไตล์อยู่ใน index.css)
+  useEffect(() => {
+    document.documentElement.classList.toggle('has-ribbon', !!siteSettings?.mourning_ribbon);
+  }, [siteSettings?.mourning_ribbon]);
+
+  // โหลดการตั้งค่าเว็บ (ธีม ข่าวสาร แบนเนอร์ ข้อมูลติดต่อ) — ถ้าโหลดไม่ได้ก็แสดงเว็บปกติ ไม่บล็อกผู้เข้าชม
+  const loadSiteSettings = useCallback(() => {
+    return getSettings()
+      .then((data) => {
+        setSiteSettings(data);
+        const theme = data.site_theme || 'normal';
+        applySiteTheme(theme);
+        try {
+          localStorage.setItem(THEME_CACHE_KEY, theme);
+        } catch {
+          /* ใช้ localStorage ไม่ได้ก็ข้าม */
+        }
+      })
+      .catch((err) => console.error('Failed to load site settings:', err));
+  }, []);
+
+  useEffect(() => {
+    loadSiteSettings().finally(() => setSettingsReady(true));
+  }, [loadSiteSettings]);
+
+  // แอดมินบันทึกการตั้งค่าจากหลังบ้าน → โหลดใหม่ให้เห็นผลทันที (และไม่เด้งหน้าข่าวสารทับหน้าแอดมิน)
+  const handleSiteSettingsChange = useCallback(() => {
+    setWelcomeDismissed(true);
+    return loadSiteSettings();
+  }, [loadSiteSettings]);
+
   // Check login token
   useEffect(() => {
     const token = localStorage.getItem('udpvecsmart_token');
@@ -67,9 +189,19 @@ export function App() {
         .catch(() => {
           localStorage.removeItem('udpvecsmart_token');
           setUser(null);
-        });
+        })
+        .finally(() => setAuthChecked(true));
+    } else {
+      setAuthChecked(true);
     }
   }, []);
+
+  // เปิดลิงก์ /portal ตรง ๆ แต่ยังไม่ได้ล็อกอิน → กลับหน้าแรก
+  useEffect(() => {
+    if (authChecked && !user && activeTab === 'portal') {
+      setActiveTab('overview', true);
+    }
+  }, [authChecked, user, activeTab, setActiveTab]);
 
   // ดึงข้อมูลรอบปีการศึกษาและตั้งค่าเริ่มต้นตามรอบปัจจุบันที่แอดมินตั้งไว้
   const loadAcademicPeriods = useCallback(async () => {
@@ -162,8 +294,28 @@ export function App() {
     }, 80);
   };
 
-  // เฉพาะ Super Admin (สอจ.อุดรธานี) เท่านั้นที่มีสิทธิ์เปลี่ยนภาพแบนเนอร์
-  const isSuperAdmin = !!user && user.role === 'SUPER_ADMIN';
+  // หน้าข่าวสารก่อนเข้าเว็บ: แสดงเมื่อเข้าเว็บครั้งแรก เปิดใช้ และมีเนื้อหา; กดเข้าแล้วจำไว้ 1 ชั่วโมง
+  const welcomeVersion = String(siteSettings?.welcome_version ?? '');
+  const welcomeTitle = String(siteSettings?.welcome_title ?? '');
+  const welcomeContent = String(siteSettings?.welcome_content ?? '');
+  const welcomeImage = siteSettings?.welcome_has_image
+    ? `${API_BASE_URL}/settings/welcome-image?v=${siteSettings.welcome_image_version ?? ''}`
+    : '';
+  const bannerSrc = siteSettings?.banner_has_image
+    ? `${API_BASE_URL}/settings/banner-image?v=${siteSettings.banner_image_version ?? ''}`
+    : undefined;
+  const contact = resolveContact(siteSettings);
+  const showWelcome =
+    settingsReady &&
+    !!siteSettings?.welcome_enabled &&
+    !!(welcomeTitle || welcomeContent || welcomeImage) &&
+    !welcomeDismissed &&
+    !wasWelcomeSeenRecently(welcomeVersion);
+
+  const handleEnterSite = () => {
+    markWelcomeSeen(welcomeVersion);
+    setWelcomeDismissed(true);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
@@ -179,11 +331,13 @@ export function App() {
       {/* 2. Main Content */}
       <main className="flex-grow">
         {/* Full-width Hero Banner with Auto-Fit & Super Admin Changer (Only for Super Admin) */}
-        <BannerSection isAdmin={isSuperAdmin} />
+        <BannerSection src={bannerSrc} />
 
         {/* Anchor point for automatic smooth scrolling to tab content */}
         <div id="main-tab-content" className="scroll-mt-24" />
 
+        {/* เนื้อหาแต่ละแท็บ: key เปลี่ยนตามแท็บเพื่อให้เล่น fade เข้าทุกครั้งที่สลับหน้า (ไร้รอยต่อ) */}
+        <div key={activeTab} className="tab-enter">
         {/* Tab 1: ภาพรวมสถิติ (Overview Dashboard) */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
@@ -204,7 +358,7 @@ export function App() {
               />
             </div>
 
-            <StatCards stats={stats} loading={loadingStats} />
+            <StatCards stats={stats} loading={loadingStats} institutions={institutions} selectedInstitutionId={selectedInstitutionId} />
             <OverviewCharts
               stats={stats}
               institutionStats={institutionStats}
@@ -247,10 +401,6 @@ export function App() {
             loading={loadingInstitutions}
             selectedInstitutionId={selectedInstitutionId}
             onSelectInstitution={handleSelectInstitution}
-            currentUser={user}
-            onRefreshInstitutions={() => {
-              getInstitutions().then((res) => setInstitutions(res.data)).catch(console.error);
-            }}
           />
         )}
 
@@ -284,7 +434,7 @@ export function App() {
         )}
 
         {/* Tab 4: ติดต่อเรา (Contact Us & Form) */}
-        {activeTab === 'contact' && <ContactSection />}
+        {activeTab === 'contact' && <ContactSection contact={contact} />}
 
         {/* Tab Portal: ระบบจัดการข้อมูล / ศูนย์ควบคุม สอจ. / บันทึกข้อมูลสถิติ */}
         {activeTab === 'portal' && user && (
@@ -292,20 +442,34 @@ export function App() {
             user={user}
             onRefreshStats={handleRefreshStats}
             onAcademicPeriodsChange={loadAcademicPeriods}
+            onSiteSettingsChange={handleSiteSettingsChange}
           />
         )}
+        </div>
 
       </main>
 
       {/* 3. Footer with #932d16 theme */}
-      <Footer />
+      <Footer contact={contact} />
 
-      {/* 4. Floating Action Button for Logged in Admin (follows screen on right) */}
-      <FloatingPortalButton
-        user={user}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
+      {/* ปิดบังหน้าเว็บไว้ชั่วครู่ระหว่างรอค่าตั้งค่า กันหน้าเว็บแวบก่อนหน้าข่าวสาร */}
+      {!settingsReady && <div className="fixed inset-0 z-[110] bg-white" />}
+
+      {/* 6. ริบบิ้นไว้อาลัยมุมขวาบน (เปิดจากหลังบ้าน) */}
+      {siteSettings?.mourning_ribbon && <MourningRibbon />}
+
+      {/* 7. หน้าข่าวสารก่อนเข้าเว็บไซต์ (เปิดจากหลังบ้าน) */}
+      {showWelcome && (
+        <WelcomeGate
+          mode={siteSettings?.welcome_mode === 'modal' ? 'modal' : 'fullpage'}
+          badge={resolveWelcomeBadge(siteSettings?.welcome_badge_enabled, siteSettings?.welcome_badge_text)}
+          title={welcomeTitle}
+          content={welcomeContent}
+          image={welcomeImage}
+          buttonText={String(siteSettings?.welcome_button_text || 'เข้าสู่เว็บไซต์')}
+          onEnter={handleEnterSite}
+        />
+      )}
 
       {/* 5. Login Modal */}
       <LoginModal

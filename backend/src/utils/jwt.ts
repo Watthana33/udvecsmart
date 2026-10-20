@@ -26,5 +26,5 @@ export function signToken(payload: JwtPayload): string {
  * @returns ข้อมูลผู้ใช้ที่ฝังไว้ใน Token หรือ throw error หากบัตรหมดอายุ/ปลอมแปลง
  */
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, ENV.JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, ENV.JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
 }

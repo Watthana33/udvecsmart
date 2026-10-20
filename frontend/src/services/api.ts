@@ -4,6 +4,7 @@ import {
   Institution,
   NewsItem,
   SiteSettings,
+  AppearanceSettingsInput,
   UserProfile,
   InstitutionStatItem,
   ContactFormInput,
@@ -13,7 +14,7 @@ import {
 } from '../types';
 
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
+export const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -29,6 +30,11 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export async function updateAppearanceSettings(data: AppearanceSettingsInput) {
+  const res = await api.put('/settings/appearance', data);
+  return res.data;
+}
 
 export async function getSettings(): Promise<SiteSettings> {
   const res = await api.get('/settings/public');
@@ -328,9 +334,92 @@ export async function getVisitorCount(): Promise<number> {
   return res.data.count;
 }
 
+// crypto.randomUUID มีเฉพาะ secure context (HTTPS/localhost) — เปิดผ่าน HTTP ในวงแลนต้องสร้างเอง
+function randomVisitorId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// รหัสผู้เข้าชม (สุ่มสร้างเองในเบราว์เซอร์) ใช้ให้เซิร์ฟเวอร์ไม่นับซ้ำเมื่อรีเฟรช — ไม่ผูกกับตัวตนใคร
+function getVisitorId(): string {
+  try {
+    let id = localStorage.getItem('udpvecsmart_visitor_id');
+    if (!id) {
+      id = randomVisitorId();
+      localStorage.setItem('udpvecsmart_visitor_id', id);
+    }
+    return id;
+  } catch {
+    return randomVisitorId();
+  }
+}
+
 export async function incrementVisitorCount(): Promise<number> {
-  const res = await api.post('/settings/visitor-count/increment');
+  const res = await api.post('/settings/visitor-count/increment', { visitorId: getVisitorId() });
   return res.data.count;
+}
+
+export async function setVisitorCount(count: number): Promise<void> {
+  await api.put('/settings/visitor-count', { count });
+}
+
+export const MAX_IMAGE_UPLOAD_BYTES = 30 * 1024 * 1024;
+
+export interface UploadedImageResult {
+  id: string;
+  width: number;
+  height: number;
+  size: number;
+  urls: { thumb: string; display: string; original: string };
+}
+
+/**
+ * อัปโหลดรูปขึ้นเซิร์ฟเวอร์ (ไฟล์ต้นฉบับ ไม่ย่อ ไม่เกิน 30MB) — คืนลิงก์รูปแสดงผล/รูปย่อ/ต้นฉบับ
+ * ข้อความ error บอกสาเหตุจริงจากเซิร์ฟเวอร์ (ชนิดไฟล์ไม่รองรับ, ไฟล์ใหญ่เกิน ฯลฯ)
+ */
+export async function uploadImage(file: File, onProgress?: (percent: number) => void): Promise<UploadedImageResult> {
+  // เบราว์เซอร์บน Windows/Chrome มักไม่ระบุชนิดไฟล์ของ .heic จึงดูนามสกุลด้วย
+  const isHeic = /\.(heic|heif)$/i.test(file.name);
+  if (!file.type.startsWith('image/') && !isHeic) {
+    throw new Error('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+  }
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    throw new Error(`รูปภาพใหญ่เกิน 30MB (ไฟล์นี้ ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+  }
+  try {
+    const res = await api.post('/images', file, {
+      headers: { 'Content-Type': file.type || (isHeic ? 'image/heic' : 'application/octet-stream'), 'X-Filename': encodeURIComponent(file.name) },
+      timeout: 5 * 60 * 1000,
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+      },
+    });
+    return res.data.data;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    throw new Error(err?.response?.data?.message || (status ? `อัปโหลดไม่สำเร็จ (HTTP ${status})` : err?.message || 'อัปโหลดไม่สำเร็จ'));
+  }
+}
+
+export async function updateBannerImage(image: string): Promise<void> {
+  await api.put('/settings/banner', { image });
+}
+
+export async function updateContactInfo(data: {
+  contactAddress?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  contactHours?: string;
+  contactFacebook?: string;
+}): Promise<void> {
+  await api.put('/settings/contact-info', data);
 }
 
 // ========================================================

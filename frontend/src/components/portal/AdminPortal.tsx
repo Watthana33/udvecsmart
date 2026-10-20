@@ -9,6 +9,7 @@ import {
   CareerPartnerSchoolItem,
 } from '../../types';
 import {
+  uploadImage,
   toggleSubmissionOpen,
   getSubmissionStatuses,
   getMySchoolStat,
@@ -25,6 +26,7 @@ import {
   createInstitution,
   deleteInstitution,
   reorderInstitutions,
+  updateInstitutionDirector,
   getAcademicPeriods,
   createAcademicPeriod,
   deleteAcademicPeriod,
@@ -44,6 +46,7 @@ import {
   Save,
   PlusCircle,
   Users,
+  User,
   GraduationCap,
   AlertTriangle,
   School,
@@ -75,21 +78,86 @@ import {
   CheckSquare,
   Eye,
   EyeOff,
+  GripVertical,
 } from 'lucide-react';
-import { getProgramsArray } from '../dashboard/InstitutionList';
+import { PROGRAM_LEVELS, ProgramLevel, parsePrograms } from '../../utils/programs';
+
+// แถวสาขาวิชาในแบบฟอร์ม (uid ใช้เป็น key ตอนลากจัดลำดับ)
+interface ProgramFormItem {
+  uid: string;
+  level: ProgramLevel;
+  name: string;
+}
+let programUidSeq = 0;
+const newProgramUid = () => `prog-${++programUidSeq}`;
+const toProgramFormItems = (raw: unknown): ProgramFormItem[] =>
+  parsePrograms(raw).map((p) => ({ uid: newProgramUid(), level: p.level, name: p.name }));
+
+/**
+ * ย้าย movedKey ไปตำแหน่ง toIndex ภายในกลุ่มย่อย (inSubset) แล้วใส่กลับลงช่องเดิมของรายการทั้งหมด
+ * — รายการนอกกลุ่มไม่ขยับ (ใช้กับตารางที่กรองอยู่ และสาขาวิชาที่แยกตามระดับ)
+ */
+// ช่องจำนวนคน: รับเฉพาะจำนวนเต็มไม่ติดลบ (ค่าที่วาง/พิมพ์เป็นทศนิยมหรือติดลบจะถูกปัดเป็นจำนวนเต็ม ≥ 0)
+const toCount = (value: string | number): number => Math.max(0, Math.floor(Number(value) || 0));
+
+const countInputProps = {
+  min: 0,
+  step: 1,
+  inputMode: 'numeric' as const,
+  // ไม่ให้พิมพ์เครื่องหมายลบ ทศนิยม หรือเลขยกกำลัง (e) ลงในช่อง
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['-', '+', '.', ',', 'e', 'E'].includes(e.key)) e.preventDefault();
+  },
+};
+
+function reorderSubset<T>(
+  list: T[],
+  inSubset: (item: T) => boolean,
+  keyOf: (item: T) => string,
+  movedKey: string,
+  toIndex: number
+): T[] {
+  const slots: number[] = [];
+  list.forEach((item, i) => inSubset(item) && slots.push(i));
+  const view = slots.map((i) => list[i]);
+  const from = view.findIndex((item) => keyOf(item) === movedKey);
+  if (from < 0 || from === toIndex) return list;
+  const [moved] = view.splice(from, 1);
+  view.splice(toIndex, 0, moved);
+  const next = [...list];
+  slots.forEach((slot, k) => {
+    next[slot] = view[k];
+  });
+  return next;
+}
+
+/** ตำแหน่งใหม่ขณะลาก = จำนวนแถวอื่นที่จุดกึ่งกลางอยู่เหนือเคอร์เซอร์ */
+function dragTargetIndex(rows: HTMLElement[], isDragged: (row: HTMLElement) => boolean, clientY: number): number {
+  return rows.filter((r) => {
+    if (isDragged(r)) return false;
+    const box = r.getBoundingClientRect();
+    return clientY > box.top + box.height / 2;
+  }).length;
+}
 import { exportSuperAdminExcel, exportSchoolAdminExcel } from '../../utils/exportExcel';
 import { OfficialReportPrintModal } from '../reports/OfficialReportPrintModal';
+import { AppearanceSettings } from './AppearanceSettings';
+import { useSlidingPill } from '../../hooks/useSlidingPill';
+import { SiteContentSettings } from './SiteContentSettings';
 
 interface AdminPortalProps {
   user: UserProfile;
   onRefreshStats: (year?: number, semester?: number) => void;
   onAcademicPeriodsChange?: () => void;
+  /** บันทึกการตั้งค่าเว็บ (ธีม/ข่าวสาร/แบนเนอร์/ข้อมูลติดต่อ) แล้ว ให้ App โหลดใหม่ */
+  onSiteSettingsChange?: () => void;
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   user,
   onRefreshStats,
   onAcademicPeriodsChange,
+  onSiteSettingsChange,
 }) => {
   const isSuperAdmin = user.role === 'SUPER_ADMIN';
 
@@ -153,12 +221,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [creatingNews, setCreatingNews] = useState(false);
   const newsFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Contact Info State (for Footer / General)
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [contactAddress, setContactAddress] = useState('ศูนย์ส่งเสริมและพัฒนาอาชีวศึกษาภาคตะวันออกเฉียงเหนือ จ.อุดรธานี 41000');
-  const [contactPhone, setContactPhone] = useState('042-221538');
-  const [contactFacebook, setContactFacebook] = useState('https://facebook.com/udpvec');
-
   // ==========================================
   // SUPER ADMIN STATE: TAB 3 (ตั้งค่าสิทธิ์ & แสงกระพริบ)
   // ==========================================
@@ -220,6 +282,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [schoolInstitution, setSchoolInstitution] = useState<any>(null);
   const [loadingSchoolStat, setLoadingSchoolStat] = useState(false);
   const [savingStat, setSavingStat] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null); // เวลาบันทึกล่าสุดของรอบที่เลือก
+  const autosaveTimerRef = useRef<number | null>(null);
+  const autosaveBaselineRef = useRef<{ stat: string; child: string } | null>(null); // null = ฟอร์มยังโหลดไม่เสร็จ
+  const autosaveBusyRef = useRef(false);
+  // รอบที่ถูกเรียกระหว่างกำลังบันทึก: เก็บ closure ของฟอร์ม ณ ตอนนั้นไว้ (ถ้ารอ render ใหม่อาจเป็นฟอร์มรอบ/วิทยาลัยอื่นแล้ว)
+  const autosavePendingRef = useRef<((resume?: { key: string; base: { stat: string; child: string } }) => void) | null>(null);
+  const autosaveFailedRef = useRef(false);
+  const autosavedSinceRefreshRef = useRef(false);
+  const autosaveRunRef = useRef<() => void>(() => {});
+  const autosaveFlushRef = useRef<() => void>(() => {});
+  const formKeyRef = useRef(''); // `${สถานศึกษา}|${ปี}|${ภาคเรียน}` ของฟอร์มที่แสดงอยู่
+  const cancelAutosaveTimer = () => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  };
 
   const [schoolPermissions, setSchoolPermissions] = useState({
     allowSectionGeneral: true,
@@ -240,8 +319,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     totalExecutives: 1,
     totalTeachers: 0,
     totalStaff: 0,
-    programsCount: 12,
-    programsList: [] as string[],
+    programsCount: 0,
+    programsList: [] as ProgramFormItem[],
     programsUrl: '',
     phone: '',
     website: '',
@@ -280,6 +359,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     civilTeachersFemale: 0,
     hiredTeachersMale: 0,
     hiredTeachersFemale: 0,
+    govEmpTeachersMale: 0,
+    govEmpTeachersFemale: 0,
 
     gradVocCertCount: 0,
     gradHighVocCertCount: 0,
@@ -300,6 +381,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // State สำหรับกลุ่ม 5: ห้องเรียนอาชีพ
   const [careerClassrooms, setCareerClassrooms] = useState<CareerClassroomItem[]>([]);
   const [savingCareer, setSavingCareer] = useState(false);
+
+  // แถบไฮไลต์ของแท็บหมวดในแบบฟอร์ม (แบบฟอร์มแสดงทีหลัง จึงใส่สถานะการแสดงไว้ใน itemKey ให้วัดใหม่ตอนเปิด)
+  // แท็บ "ทุกส่วน" เป็นมุมมองภาพรวม ดูได้อย่างเดียว (แก้ไขได้เฉพาะในแท็บของแต่ละหมวด)
+  const isViewOnly = activeFormSection === 'all';
+  const isStatFormOpen = !!editingCollege || (!isSuperAdmin && schoolPortalTab === 'stats_form');
+  const formTabPill = useSlidingPill(activeFormSection, `${isStatFormOpen}|${dveDepartments.length}|${careerClassrooms.length}`);
 
   // ปรับโครงสร้างข้อมูลห้องเรียนอาชีพให้มี partnerSchools ครบถ้วนเสมอ
   const normalizeCareerList = (list: CareerClassroomItem[]): CareerClassroomItem[] => {
@@ -326,40 +413,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   };
 
-
-  // Client-side Image compression helper via HTML5 Canvas
-  const compressImage = (file: File, maxWidth = 1280, quality = 0.82): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-          } else {
-            resolve(event.target?.result as string);
-          }
-        };
-        img.onerror = reject;
-        img.src = event.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
 
   // ==========================================
   // LOAD INITIAL DATA
@@ -459,9 +512,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const populateFormWithData = (data: any, inst?: any) => {
     const director = inst?.personnels?.[0];
-    const currentPrograms = getProgramsArray(inst?.programsList);
-    const pCount = inst?.programsCount ?? 12;
-    const initialProgramsList = Array.from({ length: pCount }, (_, i) => currentPrograms[i] || '');
+    setLastSavedAt(data.updatedAt || null);
+    const initialProgramsList = toProgramFormItems(inst?.programsList);
 
     setFormData({
       academicYear: data.academicYear || selectedYear,
@@ -470,7 +522,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       photoUrl: director?.photoUrl || '',
       phone: inst?.phone || '',
       website: inst?.website || '',
-      programsCount: pCount,
+      programsCount: initialProgramsList.length,
       programsList: initialProgramsList,
       programsUrl: inst?.programsUrl || '',
       maleStudents: data.maleStudents || 0,
@@ -511,6 +563,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       civilTeachersFemale: data.civilTeachersFemale || 0,
       hiredTeachersMale: data.hiredTeachersMale || 0,
       hiredTeachersFemale: data.hiredTeachersFemale || 0,
+      govEmpTeachersMale: data.govEmpTeachersMale || 0,
+      govEmpTeachersFemale: data.govEmpTeachersFemale || 0,
 
       gradVocCertCount: data.gradVocCertCount || 0,
       gradHighVocCertCount: data.gradHighVocCertCount || 0,
@@ -527,9 +581,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const resetFormForYear = (year: number, semester: number, inst?: any) => {
     const director = inst?.personnels?.[0];
-    const currentPrograms = getProgramsArray(inst?.programsList);
-    const pCount = inst?.programsCount ?? 12;
-    const initialProgramsList = Array.from({ length: pCount }, (_, i) => currentPrograms[i] || '');
+    setLastSavedAt(null);
+    const initialProgramsList = toProgramFormItems(inst?.programsList);
 
     setFormData({
       academicYear: year,
@@ -538,7 +591,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       photoUrl: director?.photoUrl || '',
       phone: inst?.phone || '',
       website: inst?.website || '',
-      programsCount: pCount,
+      programsCount: initialProgramsList.length,
       programsList: initialProgramsList,
       programsUrl: inst?.programsUrl || '',
       maleStudents: 0,
@@ -579,6 +632,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       civilTeachersFemale: 0,
       hiredTeachersMale: 0,
       hiredTeachersFemale: 0,
+      govEmpTeachersMale: 0,
+      govEmpTeachersFemale: 0,
 
       gradVocCertCount: 0,
       gradHighVocCertCount: 0,
@@ -595,6 +650,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Change Year or Semester in Form
   const handleYearSemesterChange = (year: number, semester: number) => {
+    autosaveFlushRef.current();
     setSelectedYear(year);
     setSelectedSemester(semester);
     if (editingCollege) {
@@ -605,7 +661,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // Super Admin: Start Editing Any College
+  // ชื่อเต็ม/ชื่อย่อของสถานศึกษาที่ สอจ. กำลังแก้ไข (บันทึกพร้อมแบบฟอร์ม)
+  const [collegeIdentity, setCollegeIdentity] = useState({ name: '', shortName: '' });
+
   const handleStartEditCollege = (college: SubmissionStatusItem, year = selectedYear, sem = selectedSemester) => {
+    if (college.id !== editingCollege?.id) {
+      autosaveFlushRef.current();
+      setCollegeIdentity({ name: college.name, shortName: college.shortName || '' });
+    }
     setEditingCollege(college);
     setLoadingCollegeStat(true);
     Promise.all([
@@ -730,7 +793,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const currentSchools = course.partnerSchools ? [...course.partnerSchools] : [];
       currentSchools[schoolIndex] = {
         ...currentSchools[schoolIndex],
-        [field]: field === 'studentCount' ? Math.max(0, Number(value) || 0) : value,
+        [field]: field === 'studentCount' ? toCount(value) : value,
       };
       course.partnerSchools = currentSchools;
       course.partnerSchoolCount = currentSchools.length;
@@ -939,14 +1002,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Super Admin: Photo upload handler for News (with canvas resize to avoid 413)
   const handleNewsImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     try {
-      const compressed = await compressImage(file, 1280, 0.82);
-      setNewsCoverImage(compressed);
-    } catch (err) {
-      console.error('Failed to process image:', err);
-      showToast('error', 'ข้อผิดพลาด', 'ไม่สามารถประมวลผลไฟล์ภาพได้');
+      const uploaded = await uploadImage(file);
+      setNewsCoverImage(uploaded.urls.display);
+    } catch (err: any) {
+      showToast('error', 'อัปโหลดรูปไม่สำเร็จ', err.message);
     }
   };
 
@@ -1050,13 +1113,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Super Admin: Save Contact Info
-  const handleSaveContactInfo = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowContactModal(false);
-    showToast('success', 'บันทึกข้อมูลติดต่อสำเร็จ', 'ข้อมูลติดต่อ สอจ.อุดรธานี ได้รับการอัปเดตเรียบร้อยแล้ว');
-  };
-
   // Super Admin: Add New Institution (Modal)
   const handleCreateInstitution = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1114,17 +1170,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // Super Admin: Move Institution Order Up / Down
-  const handleMoveInstitution = async (id: string, direction: 'UP' | 'DOWN') => {
-    const currentIndex = submissionStatuses.findIndex((s) => s.id === id);
-    if (currentIndex < 0) return;
-    const targetIndex = direction === 'UP' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= submissionStatuses.length) return;
+  // ย้ายเฉพาะในรายการที่มองเห็นอยู่ (หลังกรอง/ค้นหา) — แถวที่ถูกกรองออกไม่ขยับ
+  const reorderWithinView = (list: SubmissionStatusItem[], visibleIds: string[], movedId: string, toIndex: number) =>
+    reorderSubset(list, (s) => visibleIds.includes(s.id), (s) => s.id, movedId, toIndex);
 
-    const nextList = [...submissionStatuses];
-    const [moved] = nextList.splice(currentIndex, 1);
-    nextList.splice(targetIndex, 0, moved);
+  // ลากจัดลำดับด้วยมือ: จับที่ไอคอนหน้าแถว (ใช้ pointer events จึงลากได้ทั้งเมาส์และนิ้ว)
+  const [draggingInstitutionId, setDraggingInstitutionId] = useState<string | null>(null);
+  const institutionTbodyRef = useRef<HTMLTableSectionElement | null>(null);
+  const institutionDragRef = useRef<{ id: string; visibleIds: string[]; startOrder: string; list: SubmissionStatusItem[] } | null>(null);
 
-    setSubmissionStatuses(nextList);
+  // ฟังที่ window ระหว่างลาก: แถวถูกย้ายใน DOM ขณะลาก ทำให้ pointer capture บนปุ่มหลุด
+  useEffect(() => {
+    if (!draggingInstitutionId) return;
+    window.addEventListener('pointermove', handleInstitutionDragMove);
+    window.addEventListener('pointerup', handleInstitutionDragEnd);
+    window.addEventListener('pointercancel', handleInstitutionDragEnd);
+    return () => {
+      window.removeEventListener('pointermove', handleInstitutionDragMove);
+      window.removeEventListener('pointerup', handleInstitutionDragEnd);
+      window.removeEventListener('pointercancel', handleInstitutionDragEnd);
+    };
+  });
+
+  const handleInstitutionDragStart = (e: React.PointerEvent<HTMLButtonElement>, id: string) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    institutionDragRef.current = {
+      id,
+      visibleIds: filteredStatuses.map((s) => s.id),
+      startOrder: submissionStatuses.map((s) => s.id).join(),
+      list: submissionStatuses,
+    };
+    setDraggingInstitutionId(id);
+    document.body.style.cursor = 'grabbing';
+  };
+
+  const handleInstitutionDragMove = (e: PointerEvent) => {
+    const drag = institutionDragRef.current;
+    const tbody = institutionTbodyRef.current;
+    if (!drag || !tbody) return;
+
+    // เลื่อนจออัตโนมัติเมื่อลากไปชิดขอบบน/ล่าง
+    if (e.clientY < 90) window.scrollBy(0, -12);
+    else if (e.clientY > window.innerHeight - 50) window.scrollBy(0, 12);
+
+    const rows = Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr[data-inst-id]'));
+    const toIndex = dragTargetIndex(rows, (r) => r.dataset.instId === drag.id, e.clientY);
+
+    const next = reorderWithinView(drag.list, drag.visibleIds, drag.id, toIndex);
+    if (next !== drag.list) {
+      drag.list = next;
+      drag.visibleIds = next.filter((s) => drag.visibleIds.includes(s.id)).map((s) => s.id);
+      setSubmissionStatuses(next);
+    }
+  };
+
+  const handleInstitutionDragEnd = () => {
+    const drag = institutionDragRef.current;
+    institutionDragRef.current = null;
+    setDraggingInstitutionId(null);
+    document.body.style.cursor = '';
+    if (!drag || drag.list.map((s) => s.id).join() === drag.startOrder) return;
+    saveInstitutionOrder(drag.list, drag.id);
+  };
+
+  const saveInstitutionOrder = async (nextList: SubmissionStatusItem[], movedId: string) => {
+    const moved = nextList.find((s) => s.id === movedId);
+    if (!moved) return;
     try {
       const orderedIds = nextList.map((s) => s.id);
       await reorderInstitutions(orderedIds);
@@ -1193,115 +1305,185 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }));
   };
 
-  // ปรับจำนวนสาขาวิชาในแบบฟอร์ม -> ปรับจำนวนช่องกรอกอัตโนมัติ
-  const handleProgramsCountChangeInForm = (newCount: number) => {
-    const validCount = Math.max(1, Math.min(60, newCount));
+  // สาขาวิชา: จำนวนสาขานับจากรายชื่อที่กรอก (ไม่ต้องกรอกจำนวนเอง)
+  const setProgramsInForm = (update: (list: ProgramFormItem[]) => ProgramFormItem[]) => {
     setFormData((prev) => {
-      const currentList = prev.programsList || [];
-      const updated = [...currentList];
-      if (validCount > updated.length) {
-        while (updated.length < validCount) updated.push('');
-      } else {
-        return {
-          ...prev,
-          programsCount: validCount,
-          programsList: updated.slice(0, validCount),
-        };
-      }
-      return {
-        ...prev,
-        programsCount: validCount,
-        programsList: updated,
-      };
+      const programsList = update(prev.programsList || []);
+      return { ...prev, programsList, programsCount: programsList.filter((p) => p.name.trim()).length };
     });
   };
 
-  // กรอกชื่อสาขาวิชาแต่ละช่องในแบบฟอร์ม
-  const handleProgramItemChangeInForm = (index: number, value: string) => {
-    setFormData((prev) => {
-      const nextList = [...(prev.programsList || [])];
-      nextList[index] = value;
-      return {
-        ...prev,
-        programsList: nextList,
-      };
-    });
+  const handleAddProgram = (level: ProgramLevel) => {
+    const uid = newProgramUid();
+    setProgramsInForm((list) => [...list, { uid, level, name: '' }]);
+    setTimeout(() => document.querySelector<HTMLInputElement>(`[data-prog-uid="${uid}"] input`)?.focus(), 30);
+  };
+
+  const handleProgramNameChange = (uid: string, name: string) => {
+    setProgramsInForm((list) => list.map((p) => (p.uid === uid ? { ...p, name } : p)));
+  };
+
+  const handleRemoveProgram = (uid: string) => {
+    setProgramsInForm((list) => list.filter((p) => p.uid !== uid));
+  };
+
+  // ลากจัดลำดับสาขาวิชาภายในระดับเดียวกัน (pointer events ฟังที่ window เพราะแถวถูกย้ายใน DOM ระหว่างลาก)
+  const [draggingProgramUid, setDraggingProgramUid] = useState<string | null>(null);
+  const programDragRef = useRef<{ uid: string; level: ProgramLevel } | null>(null);
+
+  useEffect(() => {
+    if (!draggingProgramUid) return;
+    const onMove = (e: PointerEvent) => {
+      const drag = programDragRef.current;
+      const group = document.querySelector(`[data-prog-group="${drag?.level}"]`);
+      if (!drag || !group) return;
+      if (e.clientY < 90) window.scrollBy(0, -12);
+      else if (e.clientY > window.innerHeight - 50) window.scrollBy(0, 12);
+      const rows = Array.from(group.querySelectorAll<HTMLElement>('[data-prog-uid]'));
+      const toIndex = dragTargetIndex(rows, (r) => r.dataset.progUid === drag.uid, e.clientY);
+      setProgramsInForm((list) => reorderSubset(list, (p) => p.level === drag.level, (p) => p.uid, drag.uid, toIndex));
+    };
+    const onEnd = () => {
+      programDragRef.current = null;
+      setDraggingProgramUid(null);
+      document.body.style.cursor = '';
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+    };
+  }, [draggingProgramUid]);
+
+  const handleProgramDragStart = (e: React.PointerEvent<HTMLButtonElement>, item: ProgramFormItem) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    programDragRef.current = { uid: item.uid, level: item.level };
+    setDraggingProgramUid(item.uid);
+    document.body.style.cursor = 'grabbing';
   };
 
   // Handle Photo upload in Section 1 (Form)
   const handleDirectorPhotoInForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     try {
-      const compressed = await compressImage(file, 800, 0.85);
-      handleInputChange('photoUrl', compressed);
-    } catch (err) {
-      console.error(err);
+      showToast('success', 'กำลังอัปโหลดรูป', 'กำลังส่งไฟล์ต้นฉบับขึ้นเซิร์ฟเวอร์...');
+      const uploaded = await uploadImage(file);
+      handleInputChange('photoUrl', uploaded.urls.display);
+      showToast('success', 'อัปโหลดรูปสำเร็จ', 'เก็บไฟล์ต้นฉบับแล้ว กดบันทึกข้อมูลเพื่อใช้รูปนี้');
+    } catch (err: any) {
+      showToast('error', 'อัปโหลดรูปไม่สำเร็จ', err.message);
     }
   };
 
-  // Submit School Stat
+  // บันทึกแบบฟอร์ม (ใช้ร่วมกันทั้งปุ่มบันทึกและบันทึกอัตโนมัติ) — คืนค่าระเบียนสถิติที่บันทึกแล้ว
+  const persistStat = async ({ silent, saveChildren }: { silent: boolean; saveChildren: boolean }) => {
+    // ฟอร์มที่กำลังบันทึก — ถ้าผู้ใช้เปลี่ยนรอบ/สถานศึกษาระหว่างรอผล จะไม่เอาผลไปทับฟอร์มใหม่
+    const formKey = formKeyRef.current;
+    const payload: any = {
+      ...formData,
+      programsList: (formData.programsList || [])
+        .map((p) => ({ level: p.level, name: p.name.trim() }))
+        .filter((p) => p.name),
+      programsCount: (formData.programsList || []).filter((p) => p.name.trim()).length,
+      programsUrl: formData.programsUrl ? formData.programsUrl.trim() : null,
+      academicYear: selectedYear,
+      semester: selectedSemester,
+    };
+
+    // คำนวณความสอดคล้องของจำนวนนักเรียนอัตโนมัติ หากกรอกเฉพาะรายชั้นปี
+    const sumGrades =
+      (Number(payload.vocCert1) || 0) +
+      (Number(payload.vocCert2) || 0) +
+      (Number(payload.vocCert3) || 0) +
+      (Number(payload.highVocCert1) || 0) +
+      (Number(payload.highVocCert2) || 0) +
+      (Number(payload.bachelorCount) || 0);
+
+    if ((Number(payload.maleStudents) || 0) + (Number(payload.femaleStudents) || 0) === 0 && sumGrades > 0) {
+      payload.maleStudents = Math.round(sumGrades / 2);
+      payload.femaleStudents = sumGrades - payload.maleStudents;
+    }
+
+    // ครูผู้สอนชาย-หญิงนับจากการจำแนกตามประเภทของครู (ข้าราชการครู + พนักงานราชการ (ครู) + ครูอัตราจ้าง)
+    payload.maleTeachers =
+      (Number(payload.civilTeachersMale) || 0) + (Number(payload.govEmpTeachersMale) || 0) + (Number(payload.hiredTeachersMale) || 0);
+    payload.femaleTeachers =
+      (Number(payload.civilTeachersFemale) || 0) + (Number(payload.govEmpTeachersFemale) || 0) + (Number(payload.hiredTeachersFemale) || 0);
+
+    // คำนวณยอดรวมครูอัตโนมัติหากกรอกยอดครูชาย-หญิง
+    const sumTeachers = (Number(payload.maleTeachers) || 0) + (Number(payload.femaleTeachers) || 0);
+    if (sumTeachers > (Number(payload.totalTeachers) || 0)) {
+      payload.totalTeachers = sumTeachers;
+    }
+
+    if (isSuperAdmin && editingCollege) {
+      payload.institutionId = editingCollege.id;
+
+      const name = collegeIdentity.name.trim();
+      const shortName = collegeIdentity.shortName.trim();
+      if (!name && !silent) {
+        throw new Error('กรุณากรอกชื่อสถานศึกษา');
+      }
+      // บันทึกอัตโนมัติข้ามการเปลี่ยนชื่อขณะช่องชื่อยังว่าง (กำลังพิมพ์ใหม่)
+      if (name && (name !== editingCollege.name || shortName !== (editingCollege.shortName || ''))) {
+        await updateInstitutionDirector(editingCollege.id, { name, shortName });
+        if (formKeyRef.current.startsWith(`${editingCollege.id}|`)) {
+          setEditingCollege({ ...editingCollege, name, shortName });
+          if (!silent) setCollegeIdentity({ name, shortName });
+        }
+      }
+    }
+
+    const res = await submitSchoolStat(payload);
+
+    // บันทึกข้อมูลตารางลูก (ทวิภาคี & ห้องเรียนอาชีพ) ไปพร้อมกัน
+    const targetInstId = isSuperAdmin ? editingCollege?.id : (schoolInstitution?.id || user.institution?.id);
+    if (saveChildren && targetInstId) {
+      try {
+        await Promise.all([
+          saveDveDepartments({
+            academicYear: selectedYear,
+            semester: selectedSemester,
+            institutionId: targetInstId,
+            departments: dveDepartments,
+          }),
+          saveCareerClassrooms({
+            academicYear: selectedYear,
+            semester: selectedSemester,
+            institutionId: targetInstId,
+            classrooms: careerClassrooms,
+          }),
+        ]);
+      } catch (childErr: any) {
+        // สถิติหลักบันทึกแล้ว แต่ตารางลูกไม่สำเร็จ → แจ้งผู้เรียก (ห้ามทำเหมือนบันทึกครบ ไม่งั้นการแก้ตารางลูกหายเงียบ)
+        if (formKeyRef.current === formKey) setLastSavedAt(res?.data?.updatedAt || new Date().toISOString());
+        const reason = childErr.response?.data?.message || childErr.message || `HTTP ${childErr.response?.status ?? '-'}`;
+        const err: any = new Error(`บันทึกสถิติแล้ว แต่ตารางทวิภาคี/ห้องเรียนอาชีพไม่สำเร็จ: ${reason}`);
+        err.statSaved = true;
+        throw err;
+      }
+    }
+
+    if (formKeyRef.current === formKey) setLastSavedAt(res?.data?.updatedAt || new Date().toISOString());
+    return res?.data;
+  };
+
+  // Submit School Stat (ปุ่มบันทึก)
   const handleSaveStat = async (e: React.FormEvent) => {
     e.preventDefault();
+    cancelAutosaveTimer();
     setSavingStat(true);
 
+    const baseAtSave = autosaveBaselineRef.current;
     try {
-      const payload: any = {
-        ...formData,
-        programsList: (formData.programsList || []).map((s: string) => s.trim()),
-        programsUrl: formData.programsUrl ? formData.programsUrl.trim() : null,
-        academicYear: selectedYear,
-        semester: selectedSemester,
-      };
-
-      // คำนวณความสอดคล้องของจำนวนนักเรียนอัตโนมัติ หากกรอกเฉพาะรายชั้นปี
-      const sumGrades =
-        (Number(payload.vocCert1) || 0) +
-        (Number(payload.vocCert2) || 0) +
-        (Number(payload.vocCert3) || 0) +
-        (Number(payload.highVocCert1) || 0) +
-        (Number(payload.highVocCert2) || 0) +
-        (Number(payload.bachelorCount) || 0);
-
-      if ((Number(payload.maleStudents) || 0) + (Number(payload.femaleStudents) || 0) === 0 && sumGrades > 0) {
-        payload.maleStudents = Math.round(sumGrades / 2);
-        payload.femaleStudents = sumGrades - payload.maleStudents;
-      }
-
-      // คำนวณยอดรวมครูอัตโนมัติหากกรอกยอดครูชาย-หญิง
-      const sumTeachers = (Number(payload.maleTeachers) || 0) + (Number(payload.femaleTeachers) || 0);
-      if (sumTeachers > (Number(payload.totalTeachers) || 0)) {
-        payload.totalTeachers = sumTeachers;
-      }
-
-      if (isSuperAdmin && editingCollege) {
-        payload.institutionId = editingCollege.id;
-      }
-
-      await submitSchoolStat(payload);
-
-      // บันทึกข้อมูลตารางลูก (ทวิภาคี & ห้องเรียนอาชีพ) ไปพร้อมกัน
-      const targetInstId = isSuperAdmin ? editingCollege?.id : (schoolInstitution?.id || user.institution?.id);
-      try {
-        if (targetInstId) {
-          await Promise.all([
-            saveDveDepartments({
-              academicYear: selectedYear,
-              semester: selectedSemester,
-              institutionId: targetInstId,
-              departments: dveDepartments,
-            }),
-            saveCareerClassrooms({
-              academicYear: selectedYear,
-              semester: selectedSemester,
-              institutionId: targetInstId,
-              classrooms: careerClassrooms,
-            }),
-          ]);
-        }
-      } catch (childErr) {
-        console.warn('Child tables auto-save warning:', childErr);
-      }
+      // ส่งตารางลูกเฉพาะเมื่อมีการแก้ (หมวดที่ถูกล็อกจะไม่ถูกส่งไปให้ได้ 403 ทุกครั้งที่กดบันทึก)
+      await persistStat({ silent: false, saveChildren: !baseAtSave || childSnapshot !== baseAtSave.child });
 
       showToast(
         'success',
@@ -1309,6 +1491,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         `ข้อมูลสถิติปีการศึกษา ${selectedYear} ภาคเรียนที่ ${selectedSemester} ได้รับการอัปเดตเรียบร้อยแล้ว`
       );
 
+      autosavedSinceRefreshRef.current = false;
+      if (autosaveBaselineRef.current) autosaveBaselineRef.current = { stat: statSnapshot, child: childSnapshot };
       onRefreshStats(selectedYear, selectedSemester);
 
       if (isSuperAdmin) {
@@ -1318,6 +1502,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       }
     } catch (err: any) {
       console.error('Submit school stat error:', err);
+      if (err.statSaved && autosaveBaselineRef.current && autosaveBaselineRef.current === baseAtSave) {
+        autosaveBaselineRef.current = { stat: statSnapshot, child: baseAtSave.child };
+      }
       showToast(
         'error',
         'บันทึกข้อมูลไม่สำเร็จ',
@@ -1325,6 +1512,114 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       );
     } finally {
       setSavingStat(false);
+    }
+  };
+
+  // ==========================================
+  // บันทึกอัตโนมัติ: หยุดพิมพ์ 2 วินาทีแล้วบันทึก (ส่งเฉพาะเมื่อข้อมูลเปลี่ยนจริง)
+  // ==========================================
+  const formLoading = loadingSchoolStat || loadingCollegeStat;
+  const formTargetId = isSuperAdmin ? editingCollege?.id : (schoolInstitution?.id || user.institution?.id);
+  formKeyRef.current = `${formTargetId}|${selectedYear}|${selectedSemester}`;
+  const autosaveAllowed = !!formTargetId && (isSuperAdmin || schoolOpenStatus);
+  const statSnapshot = JSON.stringify({ formData, collegeIdentity: isSuperAdmin ? collegeIdentity : null });
+  const childSnapshot = JSON.stringify({ dveDepartments, careerClassrooms });
+
+  const renderFormKey = formKeyRef.current;
+
+  const runAutosave = async (resume?: { key: string; base: { stat: string; child: string } }) => {
+    autosaveTimerRef.current = null;
+    // รอบที่ต่อคิวจากรอบก่อนของฟอร์มเดียวกัน: เทียบกับผลของรอบก่อน (จุดอ้างอิงใน ref อาจเป็นของฟอร์มใหม่แล้ว)
+    const base = resume && resume.key === renderFormKey ? resume.base : autosaveBaselineRef.current;
+    if (!base || !autosaveAllowed) return;
+    if (autosaveBusyRef.current) {
+      autosavePendingRef.current = runAutosave;
+      return;
+    }
+    const snap = { stat: statSnapshot, child: childSnapshot };
+    const childChanged = snap.child !== base.child;
+    if (snap.stat === base.stat && !childChanged) return;
+
+    autosaveBusyRef.current = true;
+    let settled = base;
+    try {
+      await persistStat({ silent: true, saveChildren: childChanged });
+      settled = snap;
+      // ฟอร์มถูกโหลดใหม่ระหว่างบันทึก (เปลี่ยนรอบ/สถานศึกษา) → ไม่แตะจุดอ้างอิงของฟอร์มใหม่
+      if (autosaveBaselineRef.current === base) autosaveBaselineRef.current = snap;
+      autosaveFailedRef.current = false;
+      autosavedSinceRefreshRef.current = true;
+    } catch (err: any) {
+      console.error('Autosave error:', err);
+      if (err.statSaved) {
+        // สถิติหลักเข้าแล้ว แต่ตารางลูกยังไม่เข้า → คงจุดอ้างอิงตารางลูกเดิมไว้ให้ส่งใหม่รอบหน้า
+        settled = { stat: snap.stat, child: base.child };
+        if (autosaveBaselineRef.current === base) autosaveBaselineRef.current = settled;
+        autosavedSinceRefreshRef.current = true;
+      }
+      // แจ้งครั้งเดียวจนกว่าจะบันทึกสำเร็จอีกครั้ง (กันแจ้งเตือนซ้ำทุก 2 วินาที)
+      if (!autosaveFailedRef.current) {
+        showToast('error', 'บันทึกอัตโนมัติไม่สำเร็จ', err.response?.data?.message || err.message || `HTTP ${err.response?.status ?? '-'}`);
+      }
+      autosaveFailedRef.current = true;
+    } finally {
+      autosaveBusyRef.current = false;
+      const next = autosavePendingRef.current;
+      autosavePendingRef.current = null;
+      if (next) next({ key: renderFormKey, base: settled });
+    }
+  };
+  autosaveRunRef.current = runAutosave;
+
+  // บันทึกที่ค้างอยู่ทันที (ก่อนเปลี่ยนรอบ/เปลี่ยนสถานศึกษา/ออกจากหน้า)
+  const flushAutosave = () => {
+    if (autosaveTimerRef.current) {
+      cancelAutosaveTimer();
+      autosaveRunRef.current();
+    }
+  };
+
+  useEffect(() => {
+    if (formLoading || !formTargetId) {
+      autosaveBaselineRef.current = null;
+      cancelAutosaveTimer();
+      return;
+    }
+    const snap = { stat: statSnapshot, child: childSnapshot };
+    if (!autosaveBaselineRef.current) {
+      autosaveBaselineRef.current = snap; // ข้อมูลเพิ่งโหลดเสร็จ ยังไม่ต้องบันทึก
+      return;
+    }
+    cancelAutosaveTimer();
+    const base = autosaveBaselineRef.current;
+    if (!autosaveAllowed || (snap.stat === base.stat && snap.child === base.child)) return;
+    autosaveTimerRef.current = window.setTimeout(() => autosaveRunRef.current(), 2000);
+  }, [statSnapshot, childSnapshot, formLoading, formTargetId, autosaveAllowed]);
+
+  // ซ่อนแท็บ/ปิดหน้า/ออกจากหน้าจัดการ → บันทึกที่ค้างอยู่
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') autosaveFlushRef.current();
+    };
+    const onUnload = () => autosaveFlushRef.current();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('beforeunload', onUnload);
+      autosaveFlushRef.current();
+    };
+  }, []);
+  autosaveFlushRef.current = flushAutosave;
+
+  // ปิดโหมดแก้ไขของ สอจ.: บันทึกที่ค้าง แล้วรีเฟรชตาราง/สถิติถ้ามีการบันทึกอัตโนมัติไปแล้ว
+  const handleCloseCollegeEdit = () => {
+    flushAutosave();
+    setEditingCollege(null);
+    if (autosavedSinceRefreshRef.current) {
+      autosavedSinceRefreshRef.current = false;
+      loadSuperAdminData();
+      onRefreshStats(selectedYear, selectedSemester);
     }
   };
 
@@ -1373,12 +1668,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#932d16]/10 text-[#932d16] flex items-center justify-center font-bold text-2xl shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-hx-932d16/10 text-hx-932d16 flex items-center justify-center font-bold text-2xl shadow-sm">
               {isSuperAdmin ? <ShieldCheck className="w-8 h-8" /> : <School className="w-8 h-8" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-[#932d16]/10 text-[#932d16]">
+                <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-hx-932d16/10 text-hx-932d16">
                   {isSuperAdmin ? '🛡️ ผู้ดูแลระบบส่วนกลาง (สอจ.อุดรธานี)' : '🏫 ผู้ดูแลสถานศึกษา'}
                 </span>
               </div>
@@ -1413,7 +1708,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSchoolPortalTab('stats_form')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                   schoolPortalTab === 'stats_form'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1434,7 +1729,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSchoolPortalTab('news_view')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                   schoolPortalTab === 'news_view'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1458,7 +1753,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSuperAdminTab('institutions')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
                   superAdminTab === 'institutions'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1469,7 +1764,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSuperAdminTab('banners_news')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
                   superAdminTab === 'banners_news'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1480,7 +1775,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSuperAdminTab('settings_glow')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
                   superAdminTab === 'settings_glow'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1491,7 +1786,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 onClick={() => setSuperAdminTab('users')}
                 className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
                   superAdminTab === 'users'
-                    ? 'border-[#932d16] text-[#932d16]'
+                    ? 'border-hx-932d16 text-hx-932d16'
                     : 'border-transparent hover:text-slate-900'
                 }`}
               >
@@ -1515,7 +1810,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   รายชื่อสถานศึกษาทั้งหมด {submissionStatuses.length} แห่งในสังกัด
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  ตรวจสอบสถิติผู้บริหาร ครู นักเรียน และแก้ไขข้อมูลสถานศึกษา
+                  ตรวจสอบสถิติผู้บริหาร ครู นักเรียน และแก้ไขข้อมูลสถานศึกษา · จัดลำดับได้โดยกดค้างที่
+                  <GripVertical className="inline w-3.5 h-3.5 -mt-0.5 mx-0.5 text-slate-400" />
+                  หน้าแถวแล้วลาก
                 </p>
               </div>
               <div className="flex items-center gap-2.5 flex-wrap">
@@ -1563,7 +1860,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {/* เพิ่มสถานศึกษา */}
                 <button
                   onClick={() => setShowAddInstitutionModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-hx-932d16 hover:bg-hx-7a2411 text-white rounded-xl text-xs font-bold shadow-md transition-all"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>+ เพิ่มสถานศึกษา</span>
@@ -1592,7 +1889,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
                 <button
                   onClick={() => setStatusFilter('PUBLIC')}
-                  className={`px-3 py-1.5 rounded-lg ${statusFilter === 'PUBLIC' ? 'bg-[#932d16] text-white shadow-sm' : 'text-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg ${statusFilter === 'PUBLIC' ? 'bg-hx-932d16 text-white shadow-sm' : 'text-slate-600'}`}
                 >
                   รัฐบาล ({submissionStatuses.filter((s) => s.type === 'PUBLIC').length})
                 </button>
@@ -1610,7 +1907,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-3 text-center w-24">ลำดับ</th>
+                    <th className="py-3 px-3 text-center w-20">ลำดับ</th>
                     <th className="py-3 px-4">รหัส</th>
                     <th className="py-3 px-4">ชื่อสถานศึกษา</th>
                     <th className="py-3 px-4">ประเภท</th>
@@ -1622,7 +1919,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <th className="py-3 px-4 text-center">จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody ref={institutionTbodyRef} className="divide-y divide-slate-100">
                   {loadingStatuses ? (
                     <tr>
                       <td colSpan={10} className="py-8 text-center text-slate-400">
@@ -1637,30 +1934,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </tr>
                   ) : (
                     filteredStatuses.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={item.id}
+                        data-inst-id={item.id}
+                        className={`transition-colors duration-150 ${
+                          draggingInstitutionId === item.id
+                            ? 'bg-amber-50 relative z-10 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)] outline outline-1 outline-amber-300'
+                            : 'hover:bg-slate-50/80'
+                        }`}
+                      >
                         <td className="py-2.5 px-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onPointerDown={(e) => handleInstitutionDragStart(e, item.id)}
+                              className={`p-1 -ml-1 rounded-md touch-none select-none transition-colors duration-150 ${
+                                draggingInstitutionId === item.id
+                                  ? 'cursor-grabbing text-amber-700 bg-amber-100'
+                                  : 'cursor-grab text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                              }`}
+                              title="กดค้างแล้วลากเพื่อจัดลำดับ"
+                              aria-label={`ลากเพื่อจัดลำดับ ${item.name}`}
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </button>
                             <span className="font-mono font-bold text-slate-500 text-xs w-6">{index + 1}</span>
-                            <div className="flex flex-col">
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => handleMoveInstitution(item.id, 'UP')}
-                                className="p-0.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                                title="เลื่อนขึ้น"
-                              >
-                                <ChevronUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={index === filteredStatuses.length - 1}
-                                onClick={() => handleMoveInstitution(item.id, 'DOWN')}
-                                className="p-0.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-900 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                                title="เลื่อนลง"
-                              >
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-mono font-bold text-slate-600">{item.code}</td>
@@ -1668,7 +1966,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <div className="font-extrabold text-slate-900">{item.name}</div>
                           {item.shortName && item.shortName !== item.name && (
                             <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                              ชื่อย่อในกราฟ: <span className="font-bold text-[#932d16]">{item.shortName}</span>
+                              ชื่อย่อในกราฟ: <span className="font-bold text-hx-932d16">{item.shortName}</span>
                             </div>
                           )}
                         </td>
@@ -1702,7 +2000,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleStartEditCollege(item)}
-                              className="px-3 py-1.5 bg-slate-100 hover:bg-[#932d16] text-slate-700 hover:text-white rounded-lg font-bold text-xs transition-all shadow-sm flex items-center gap-1"
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-hx-932d16 text-slate-700 hover:text-white rounded-lg font-bold text-xs transition-all shadow-sm flex items-center gap-1"
                               title="แก้ไขข้อมูลสถานศึกษา"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -1733,48 +2031,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
          ========================================================================= */}
       {isSuperAdmin && superAdminTab === 'banners_news' && (
         <div className="space-y-8">
-          {/* Top 2 Cards: Header Banner & Contact Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Card 1: Header Banner */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
-              <div>
-                <h3 className="text-base font-black text-slate-900">แบนเนอร์ส่วนหัวเว็บ (Header Banner)</h3>
-                <p className="text-xs text-slate-500 mt-1">เปลี่ยนภาพพื้นหลังส่วนหัวตามเทศกาล</p>
-              </div>
-              <div className="pt-6">
-                <button
-                  onClick={() => {
-                    const btn = document.getElementById('navbar-banner-changer-btn');
-                    if (btn) {
-                      btn.click();
-                    } else {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                      showToast('success', 'เปลี่ยนภาพแบนเนอร์', 'สามารถกดปุ่ม "📷 เปลี่ยนแบนเนอร์" ที่มุมขวาบนของแบนเนอร์ได้ทันที');
-                    }
-                  }}
-                  className="px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-xs rounded-xl shadow-md transition-all"
-                >
-                  แก้ไขแบนเนอร์
-                </button>
-              </div>
-            </div>
+          {/* แบนเนอร์ / ข้อมูลติดต่อ / ยอดผู้เข้าชม — เก็บที่เซิร์ฟเวอร์ */}
+          <SiteContentSettings onToast={showToast} onChanged={onSiteSettingsChange} />
 
-            {/* Card 2: Contact Info */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
-              <div>
-                <h3 className="text-base font-black text-slate-900">ข้อมูลติดต่อ สอจ. (Footer Info)</h3>
-                <p className="text-xs text-slate-500 mt-1">แก้ไขที่อยู่ สอจ. เบอร์โทร และแฟนเพจ</p>
-              </div>
-              <div className="pt-6">
-                <button
-                  onClick={() => setShowContactModal(true)}
-                  className="px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-xs rounded-xl shadow-md transition-all"
-                >
-                  แก้ไขข้อมูลติดต่อ
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Card: ธีมไว้อาลัย & หน้าข่าวสารก่อนเข้าเว็บไซต์ */}
+          <AppearanceSettings onToast={showToast} onChanged={onSiteSettingsChange} />
 
           {/* Card 3: News Carousel List */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
@@ -1803,7 +2064,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <form id="news-form-container" onSubmit={handleCreateNews} className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-6 space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                   <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                    <Newspaper className="w-4 h-4 text-[#932d16]" />
+                    <Newspaper className="w-4 h-4 text-hx-932d16" />
                     <span>{editingNewsId ? 'แก้ไขข้อมูลข่าวประชาสัมพันธ์' : 'เพิ่มข่าวประชาสัมพันธ์ใหม่'}</span>
                   </h4>
                   {editingNewsId && (
@@ -1851,7 +2112,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <input
                       ref={newsFileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.heic,.heif"
                       onChange={handleNewsImageUpload}
                       className="hidden"
                     />
@@ -1882,7 +2143,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <ExternalLink className="w-3.5 h-3.5 text-[#932d16]" />
+                      <ExternalLink className="w-3.5 h-3.5 text-hx-932d16" />
                       <span>แนบลิงก์ข่าว / ดูรายละเอียดเพิ่มเติม (URL)</span>
                     </span>
                     <span className="text-[11px] text-slate-400 font-normal">
@@ -1894,7 +2155,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     placeholder="https://facebook.com/... หรือ https://www.udontech.ac.th/news/..."
                     value={newsLinkUrl}
                     onChange={(e) => setNewsLinkUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16]"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16"
                   />
                 </div>
 
@@ -1909,7 +2170,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <button
                     type="submit"
                     disabled={creatingNews}
-                    className="px-5 py-2 text-xs font-bold bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl shadow disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2 text-xs font-bold bg-hx-932d16 hover:bg-hx-7a2411 text-white rounded-xl shadow disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                   >
                     {creatingNews ? (
                       <>
@@ -2048,7 +2309,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-2xl bg-[#932d16]/10 text-[#932d16]">
+              <div className="p-2.5 rounded-2xl bg-hx-932d16/10 text-hx-932d16">
                 <Lock className="w-6 h-6" />
               </div>
               <div>
@@ -2072,7 +2333,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionGeneral}
                   onChange={(e) => setAllowSectionGeneral(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2085,7 +2346,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionTeachers}
                   onChange={(e) => setAllowSectionTeachers(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2098,7 +2359,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionGrades}
                   onChange={(e) => setAllowSectionGrades(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2111,7 +2372,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionDve}
                   onChange={(e) => setAllowSectionDve(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2124,7 +2385,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionCareer}
                   onChange={(e) => setAllowSectionCareer(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2137,7 +2398,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSectionGraduates}
                   onChange={(e) => setAllowSectionGraduates(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
 
@@ -2154,7 +2415,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   type="checkbox"
                   checked={allowSchoolExport}
                   onChange={(e) => setAllowSchoolExport(e.target.checked)}
-                  className="w-5 h-5 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                  className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                 />
               </label>
             </div>
@@ -2183,7 +2444,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <button
               onClick={handleSavePermissions}
               disabled={savingPermissions}
-              className="w-full py-3 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 bg-hx-932d16 hover:bg-hx-7a2411 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               <span>{savingPermissions ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าสิทธิ์และการเน้นย้ำ'}</span>
@@ -2215,7 +2476,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-[#932d16]">
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-hx-932d16">
                   <Calendar className="w-6 h-6" />
                 </div>
                 <div>
@@ -2264,14 +2525,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       type="checkbox"
                       checked={newPeriodIsCurrent}
                       onChange={(e) => setNewPeriodIsCurrent(e.target.checked)}
-                      className="w-4 h-4 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                      className="w-4 h-4 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                     />
                     <span className="text-xs font-semibold text-slate-700">ตั้งเป็นรอบปัจจุบัน</span>
                   </label>
                   <button
                     type="submit"
                     disabled={addingPeriod}
-                    className="w-full py-2 bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl text-xs font-bold shadow transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full py-2 bg-hx-932d16 hover:bg-hx-7a2411 text-white rounded-xl text-xs font-bold shadow transition-all flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>{addingPeriod ? 'กำลังเพิ่ม...' : 'เพิ่มรอบข้อมูล'}</span>
@@ -2367,7 +2628,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   setUserInstitutionId('');
                   setShowUserModal(true);
                 }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#932d16] hover:bg-[#7a2411] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-hx-932d16 hover:bg-hx-7a2411 text-white rounded-xl text-xs font-bold shadow-md transition-all"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ เพิ่มบัญชีผู้ใช้งาน</span>
@@ -2465,7 +2726,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Newspaper className="w-5 h-5 text-[#932d16]" />
+                  <Newspaper className="w-5 h-5 text-hx-932d16" />
                   <span>ข่าวประชาสัมพันธ์และประกาศจาก สอจ.อุดรธานี</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
@@ -2476,7 +2737,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             {loadingNews ? (
               <div className="py-12 text-center text-xs text-slate-400">
-                <Loader2 className="w-6 h-6 animate-spin text-[#932d16] mx-auto mb-2" />
+                <Loader2 className="w-6 h-6 animate-spin text-hx-932d16 mx-auto mb-2" />
                 กำลังโหลดข่าวสาร...
               </div>
             ) : newsList.length === 0 ? (
@@ -2486,7 +2747,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {newsList.map((item) => (
-                  <div key={item.id} className="p-4 rounded-2xl border border-slate-200 hover:border-[#932d16]/30 transition-all flex gap-4 bg-slate-50/50 hover:bg-white hover:shadow-md group">
+                  <div key={item.id} className="p-4 rounded-2xl border border-slate-200 hover:border-hx-932d16/30 transition-all flex gap-4 bg-slate-50/50 hover:bg-white hover:shadow-md group">
                     <div className="w-28 h-20 rounded-xl overflow-hidden bg-slate-200 shrink-0 border border-slate-200">
                       {item.coverImageUrl ? (
                         <img src={item.coverImageUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
@@ -2499,10 +2760,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mb-1">
-                          <Calendar className="w-3 h-3 text-[#932d16]" />
+                          <Calendar className="w-3 h-3 text-hx-932d16" />
                           {new Date(item.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </span>
-                        <h4 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug group-hover:text-[#932d16] transition-colors">{item.title}</h4>
+                        <h4 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug group-hover:text-hx-932d16 transition-colors">{item.title}</h4>
                         <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">{item.content}</p>
                       </div>
                       {item.linkUrl && (
@@ -2510,7 +2771,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           href={item.linkUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-[#932d16] font-bold hover:underline mt-2 self-start"
+                          className="inline-flex items-center gap-1 text-[11px] text-hx-932d16 font-bold hover:underline mt-2 self-start"
                         >
                           <span>เปิดดูรายละเอียด</span>
                           <ExternalLink className="w-3 h-3" />
@@ -2535,78 +2796,74 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           {(loadingCollegeStat || loadingSchoolStat) && (
             <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-xs flex items-center justify-center rounded-3xl">
               <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center gap-3 border border-slate-200">
-                <Loader2 className="w-5 h-5 text-[#932d16] animate-spin" />
+                <Loader2 className="w-5 h-5 text-hx-932d16 animate-spin" />
                 <span className="text-xs font-bold text-slate-700">กำลังโหลดข้อมูลสถิติ...</span>
               </div>
             </div>
           )}
 
-          {/* Banner for Super Admin Override */}
-          {isSuperAdmin && editingCollege && (
-            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 p-4 rounded-2xl shadow-md flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-6 h-6 shrink-0" />
-                <div>
-                  <h4 className="font-extrabold text-sm">
-                    👑 โหมดแก้ไขข้อมูลโดยผู้ดูแลระบบ สอจ. (Super Admin Override)
-                  </h4>
-                  <p className="text-xs opacity-90">
-                    กำลังแก้ไขข้อมูลของ: <strong>{editingCollege.name}</strong> ({editingCollege.code})
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setEditingCollege(null)}
-                className="px-3.5 py-1.5 bg-white text-slate-900 font-bold text-xs rounded-xl shadow hover:bg-slate-100 transition-colors shrink-0"
-              >
-                ✕ ปิดโหมดแก้ไข
-              </button>
-            </div>
-          )}
-
           {/* Form Box */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
-            {/* Header with Year and Semester Selector (ตอบสนองความต้องการข้อ 5) */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">
-                  แบบฟอร์มบันทึกและรายงานข้อมูลสถิติประจำสถานศึกษา
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  สถานศึกษา: <strong>{isSuperAdmin ? editingCollege?.name : (schoolInstitution?.name || user.institution?.name)}</strong>
-                </p>
+            {/* หัวแบบฟอร์ม: ชื่อเต็มบรรทัด แล้วตามด้วยแถบเครื่องมือ (รอบรายงาน / ส่งออก) แยกเป็นแถวของตัวเอง */}
+            <div className="space-y-4 pb-6 border-b border-slate-100">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-slate-900">
+                    แบบฟอร์มบันทึกและรายงานข้อมูลสถิติประจำสถานศึกษา
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    สถานศึกษา: <strong>{isSuperAdmin ? editingCollege?.name : (schoolInstitution?.name || user.institution?.name)}</strong>
+                    {isSuperAdmin && editingCollege?.code && <span className="text-slate-400"> ({editingCollege.code})</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {lastSavedAt
+                      ? `บันทึกล่าสุด ${new Date(lastSavedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })} เวลา ${new Date(lastSavedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`
+                      : 'ยังไม่มีการบันทึกในรอบรายงานนี้'}
+                  </p>
+                </div>
+                {isSuperAdmin && editingCollege && (
+                  <button
+                    type="button"
+                    onClick={handleCloseCollegeEdit}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs font-bold transition-colors duration-150 cursor-pointer shrink-0"
+                    title="ปิดแบบฟอร์มและกลับไปที่รายชื่อสถานศึกษา"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>ปิด</span>
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-2 bg-slate-50 rounded-2xl border border-slate-200">
                 {/* Year and Semester Dynamic Selector */}
-                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 shrink-0">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                    <Calendar className="w-4 h-4 text-[#932d16]" />
+                <label className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 pl-1 text-xs font-bold text-slate-700 min-w-0">
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <Calendar className="w-4 h-4 text-hx-932d16" />
                     <span>รอบรายงานข้อมูล:</span>
-                    <select
-                      value={`${selectedYear}-${selectedSemester}`}
-                      onChange={(e) => {
-                        const [y, s] = e.target.value.split('-').map(Number);
-                        handleYearSemesterChange(y, s);
-                      }}
-                      className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-[#932d16] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#932d16]"
-                    >
-                      {academicPeriods.map((p) => (
-                        <option key={p.id} value={`${p.year}-${p.semester}`}>
-                          ปีการศึกษา {p.year} - ภาคเรียนที่ {p.semester} {p.isCurrent ? '⭐ (รอบปัจจุบัน)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                  </span>
+                  <select
+                    value={`${selectedYear}-${selectedSemester}`}
+                    onChange={(e) => {
+                      const [y, s] = e.target.value.split('-').map(Number);
+                      handleYearSemesterChange(y, s);
+                    }}
+                    className="w-full sm:w-auto min-w-0 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-hx-932d16 shadow-sm focus:outline-none focus:ring-2 focus:ring-hx-932d16"
+                  >
+                    {academicPeriods.map((p) => (
+                      <option key={p.id} value={`${p.year}-${p.semester}`}>
+                        ปีการศึกษา {p.year} - ภาคเรียนที่ {p.semester} {p.isCurrent ? '(รอบปัจจุบัน)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
                 {/* Export Excel & Print Report Buttons (เฉพาะ Super Admin หรือเมื่อได้รับอนุญาต) */}
                 {(isSuperAdmin || schoolPermissions.allowSchoolExport) && (
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 md:flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={handleSchoolAdminExportExcel}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer whitespace-nowrap"
                       title="ดาวน์โหลดไฟล์ Excel สรุปข้อมูลวิทยาลัยนี้"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -2616,7 +2873,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <button
                       type="button"
                       onClick={handleSchoolAdminPrintReport}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer whitespace-nowrap"
                       title="พิมพ์แบบรายงานราชการของวิทยาลัยนี้ หรือบันทึกเป็น PDF"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2627,120 +2884,86 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
             </div>
 
-            {/* Form Section Tabs Navigator (ตอบสนองความต้องการเลือกดู/กรอกข้อมูลแยกแท็บแบบ Responsive) */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 max-w-full">
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('all')}
-                className={`flex-1 min-w-[85px] sm:min-w-[110px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'all'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
+            {/* แท็บหมวดของแบบฟอร์ม: แถบไฮไลต์เลื่อนไปหาแท็บที่เลือก (แบบเดียวกับ navbar หลัก)
+                และแท็บที่เลือกต่อเนื้อเดียวกับกล่องเนื้อหาด้านล่าง (สีพื้นเดียวกัน ไม่มีเส้นคั่น) */}
+            <div>
+              <div
+                ref={formTabPill.containerRef as React.RefObject<HTMLDivElement>}
+                role="tablist"
+                className="relative flex gap-1 px-1.5 pt-1.5 bg-slate-100 rounded-t-2xl border border-b-0 border-slate-200 overflow-x-auto no-scrollbar shadow-[inset_0_-1px_0_#e2e8f0]"
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span>ทุกส่วน</span>
-              </button>
+                <span
+                  aria-hidden="true"
+                  className="absolute left-0 top-0 rounded-t-xl bg-slate-50 border border-b-0 border-slate-200 pointer-events-none duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
+                  style={formTabPill.pillStyle}
+                />
+                {([
+                  { id: 'all', label: 'ทุกส่วน', icon: Layers },
+                  { id: 'general', label: '1. ข้อมูลทั่วไป', icon: Building2 },
+                  { id: 'teachers', label: '2. บุคลากร', icon: Briefcase },
+                  { id: 'grades', label: '3. สถิตินักเรียน', icon: Users },
+                  { id: 'dve', label: `4. ทวิภาคี (${dveDepartments.length})`, icon: BookOpen },
+                  { id: 'career', label: `5. ห้องเรียนอาชีพ (${careerClassrooms.length})`, icon: Award },
+                  { id: 'graduates', label: '6. จบ & มีงานทำ', icon: GraduationCap },
+                ] as const).map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeFormSection === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      ref={formTabPill.setItemRef(tab.id)}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveFormSection(tab.id)}
+                      className={`relative z-10 flex-1 shrink-0 ${tab.id === 'all' ? 'min-w-[85px] sm:min-w-[100px]' : 'min-w-[110px] sm:min-w-[120px]'} px-2.5 py-2.5 sm:px-3 rounded-t-xl font-bold text-[11px] sm:text-xs whitespace-nowrap flex items-center justify-center gap-1 transition-colors duration-300 cursor-pointer ${
+                        isActive ? 'text-hx-932d16' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('general')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'general'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>1. ข้อมูลทั่วไป</span>
-              </button>
+            <form
+              key={activeFormSection}
+              onSubmit={handleSaveStat}
+              className="tab-enter space-y-8 p-3 sm:p-5 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200"
+            >
+              {isViewOnly && (
+                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-sky-950 flex items-start gap-3">
+                  <Eye className="w-4 h-4 text-sky-700 mt-0.5 shrink-0" />
+                  <div className="text-xs">
+                    <strong className="font-black text-sky-900 block">มุมมองภาพรวมทุกส่วน (ดูได้อย่างเดียว)</strong>
+                    <span className="text-sky-800 text-[11px] mt-0.5 block leading-relaxed">
+                      หากต้องการแก้ไขข้อมูล กรุณาเลือกแท็บของหมวดนั้นด้านบน (1–6)
+                    </span>
+                  </div>
+                </div>
+              )}
 
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('teachers')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'teachers'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <Briefcase className="w-3.5 h-3.5" />
-                <span>2. บุคลากร</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('grades')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'grades'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>3. สถิตินักเรียน</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('dve')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'dve'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>4. ทวิภาคี ({dveDepartments.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('career')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'career'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>5. ห้องเรียนอาชีพ ({careerClassrooms.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFormSection('graduates')}
-                className={`flex-1 min-w-[95px] sm:min-w-[120px] px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeFormSection === 'graduates'
-                    ? 'bg-white text-[#932d16] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>6. จบ & มีงานทำ</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveStat} className="space-y-8">
               {/* ==========================================================
                   SECTION 1: ข้อมูลทั่วไปและผู้บริหาร
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'general') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGeneral);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGeneral);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_1';
                 return (
                   <div
                     className={`rounded-3xl p-6 border transition-all ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-[#932d16]" />
+                        <Building2 className="w-5 h-5 text-hx-932d16" />
                         <h3 className="text-base font-black text-slate-900">
                           1. ข้อมูลทั่วไปและผู้บริหารสถานศึกษา
                         </h3>
@@ -2750,7 +2973,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           ⚡ กรุณาอัปเดตข้อมูล
                         </span>
                       )}
-                      {isLocked && (
+                      {lockedByAdmin && (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                           <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                         </span>
@@ -2758,7 +2981,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="mb-5 p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -2768,6 +2991,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <span className="text-amber-800 text-[11px] mt-0.5 block leading-relaxed">
                             ท่านสามารถตรวจสอบข้อมูลเดิมที่เคยบันทึกไว้ได้ แต่ไม่สามารถพิมพ์แก้ไขได้ในขณะนี้ หากต้องการแก้ไขกรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี
                           </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ชื่อสถานศึกษา / ชื่อย่อ (เฉพาะผู้ดูแลระบบ สอจ.) */}
+                    {isSuperAdmin && editingCollege && (
+                      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="space-y-1 sm:col-span-2">
+                          <label htmlFor="college-name" className="text-xs font-bold text-slate-700">
+                            ชื่อสถานศึกษา <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            id="college-name"
+                            type="text"
+                            required
+                            maxLength={200}
+                            disabled={isViewOnly}
+                            value={collegeIdentity.name}
+                            onChange={(e) => setCollegeIdentity((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label htmlFor="college-short-name" className="text-xs font-bold text-slate-700">
+                            ชื่อย่อวิทยาลัย
+                          </label>
+                          <input
+                            id="college-short-name"
+                            type="text"
+                            maxLength={100}
+                            disabled={isViewOnly}
+                            value={collegeIdentity.shortName}
+                            onChange={(e) => setCollegeIdentity((prev) => ({ ...prev, shortName: e.target.value }))}
+                            placeholder="เช่น ว.เทคนิคอุดรธานี"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                          />
                         </div>
                       </div>
                     )}
@@ -2786,7 +3045,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="cursor-pointer px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[11px] flex items-center gap-1.5 shadow-sm">
                             <Camera className="w-3 h-3" />
                             <span>เปลี่ยนภาพผู้บริหาร</span>
-                            <input type="file" accept="image/*" onChange={handleDirectorPhotoInForm} className="hidden" />
+                            <input type="file" accept="image/*,.heic,.heif" onChange={handleDirectorPhotoInForm} className="hidden" />
                           </label>
                         ) : (
                           <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
@@ -2812,10 +3071,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">จำนวนผู้บริหาร (คน) (ผอ. / รอง ผอ.)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             min="1"
                             value={formData.totalExecutives}
-                            onChange={(e) => handleInputChange('totalExecutives', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('totalExecutives', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -2823,9 +3083,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">จำนวนครูผู้สอน (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.totalTeachers}
-                            onChange={(e) => handleInputChange('totalTeachers', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('totalTeachers', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -2833,9 +3094,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">จำนวนบุคลากรทางการศึกษา (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.totalStaff}
-                            onChange={(e) => handleInputChange('totalStaff', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('totalStaff', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -2869,24 +3131,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <Layers className="w-4 h-4 text-[#932d16]" />
+                            <Layers className="w-4 h-4 text-hx-932d16" />
                             <span>สาขาวิชาที่เปิดสอน (ปวช. / ปวส. / ทล.บ.)</span>
                           </label>
                           <p className="text-[11px] text-slate-400 mt-0.5">
-                            กรอกชื่อสาขาวิชาที่เปิดสอนจริง เพื่อแสดงในทำเนียบสถานศึกษา
+                            กดเพิ่มสาขาในแต่ละระดับ จัดลำดับได้โดยกดค้างที่
+                            <GripVertical className="inline w-3 h-3 -mt-0.5 mx-0.5" />
+                            แล้วลาก — แสดงในทำเนียบสถานศึกษา
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs font-semibold text-slate-600">จำนวนสาขา:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="60"
-                            disabled={isLocked}
-                            value={formData.programsCount}
-                            onChange={(e) => handleProgramsCountChangeInForm(Number(e.target.value))}
-                            className="w-16 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center text-[#932d16] disabled:bg-slate-100"
-                          />
+                          <span className="min-w-[2.5rem] px-2.5 py-1 bg-hx-932d16/10 rounded-lg text-sm font-black text-center text-hx-932d16">
+                            {formData.programsCount}
+                          </span>
                           <span className="text-xs text-slate-500">สาขา</span>
                         </div>
                       </div>
@@ -2894,7 +3152,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       {/* ลิงก์รายละเอียดหลักสูตร */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                          <ExternalLink className="w-3 h-3 text-[#932d16]" />
+                          <ExternalLink className="w-3 h-3 text-hx-932d16" />
                           <span>ลิงก์รายละเอียดหลักสูตร / แผนการเรียนทั้งหมด (URL) (ถ้ามี)</span>
                         </label>
                         <input
@@ -2907,31 +3165,96 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         />
                       </div>
 
-                      {/* รายการช่องกรอกชื่อสาขาวิชา */}
-                      <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80">
-                        <div className="text-[11px] font-bold text-slate-600 mb-3 flex items-center justify-between">
-                          <span>รายชื่อสาขาวิชาที่เปิดสอน ({formData.programsCount} สาขา):</span>
-                          <span className="text-slate-400 font-normal">
-                            กรอกได้สูงสุด 60 สาขา
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                          {Array.from({ length: formData.programsCount }).map((_, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5">
-                              <span className="w-6 text-[10px] font-bold text-slate-400 text-right shrink-0">
-                                {idx + 1}.
-                              </span>
-                              <input
-                                type="text"
-                                disabled={isLocked}
-                                value={(formData.programsList && formData.programsList[idx]) || ''}
-                                onChange={(e) => handleProgramItemChangeInForm(idx, e.target.value)}
-                                placeholder={`สาขาวิชาที่ ${idx + 1}`}
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                              />
+                      {/* รายชื่อสาขาวิชา แยกตามระดับ */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        {PROGRAM_LEVELS.map((level) => {
+                          const items = (formData.programsList || []).filter((p) => p.level === level.key);
+                          const filled = items.filter((p) => p.name.trim()).length;
+                          return (
+                            <div
+                              key={level.key}
+                              data-prog-group={level.key}
+                              className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80"
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-black text-slate-800">{level.label}</div>
+                                  <div className="text-[10px] text-slate-400 truncate">
+                                    {level.fullLabel.replace(/\s*\(.*\)$/, '')} · {filled} สาขา
+                                  </div>
+                                </div>
+                                {!isLocked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddProgram(level.key)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-hx-932d16 text-hx-932d16 hover:text-white border border-slate-200 hover:border-hx-932d16 rounded-lg text-[11px] font-bold transition-colors duration-150 cursor-pointer shrink-0"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>เพิ่มสาขา</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {items.length === 0 ? (
+                                <div className="py-4 text-center text-[11px] text-slate-400 border border-dashed border-slate-300 rounded-xl">
+                                  ยังไม่มีสาขาในระดับ {level.label}
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {items.map((item, idx) => {
+                                    const isDragging = draggingProgramUid === item.uid;
+                                    return (
+                                      <div
+                                        key={item.uid}
+                                        data-prog-uid={item.uid}
+                                        className={`flex items-center gap-1 rounded-xl transition-colors duration-150 ${
+                                          isDragging ? 'bg-amber-50 outline outline-1 outline-amber-300 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.25)] relative z-10' : ''
+                                        }`}
+                                      >
+                                        {!isLocked && (
+                                          <button
+                                            type="button"
+                                            onPointerDown={(e) => handleProgramDragStart(e, item)}
+                                            className={`p-1 rounded-md touch-none select-none shrink-0 transition-colors duration-150 ${
+                                              isDragging
+                                                ? 'cursor-grabbing text-amber-700 bg-amber-100'
+                                                : 'cursor-grab text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                                            }`}
+                                            title="กดค้างแล้วลากเพื่อจัดลำดับ"
+                                            aria-label={`ลากเพื่อจัดลำดับสาขา ${item.name || idx + 1}`}
+                                          >
+                                            <GripVertical className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        <span className="w-5 text-[10px] font-bold text-slate-400 text-right shrink-0">{idx + 1}.</span>
+                                        <input
+                                          type="text"
+                                          disabled={isLocked}
+                                          value={item.name}
+                                          onChange={(e) => handleProgramNameChange(item.uid, e.target.value)}
+                                          placeholder="ชื่อสาขาวิชา"
+                                          aria-label={`ชื่อสาขาวิชา ${level.label} ลำดับที่ ${idx + 1}`}
+                                          className="w-full min-w-0 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                        />
+                                        {!isLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveProgram(item.uid)}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors duration-150 cursor-pointer shrink-0"
+                                            title="ลบสาขานี้"
+                                            aria-label={`ลบสาขา ${item.name || idx + 1}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -2942,26 +3265,32 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   SECTION 2: ข้อมูลบุคลากรทางการศึกษา และวุฒิการศึกษา
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'teachers') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionTeachers);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionTeachers);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_teachers';
                 const totalDegreeMale = (formData.degreeAssociateMale || 0) + (formData.degreeBachelorMale || 0) + (formData.degreeMasterMale || 0) + (formData.degreeDoctorMale || 0);
                 const totalDegreeFemale = (formData.degreeAssociateFemale || 0) + (formData.degreeBachelorFemale || 0) + (formData.degreeMasterFemale || 0) + (formData.degreeDoctorFemale || 0);
-                const totalTeachersTypeMale = (formData.civilTeachersMale || 0) + (formData.hiredTeachersMale || 0);
-                const totalTeachersTypeFemale = (formData.civilTeachersFemale || 0) + (formData.hiredTeachersFemale || 0);
+                const totalTeachersTypeMale = (formData.civilTeachersMale || 0) + (formData.govEmpTeachersMale || 0) + (formData.hiredTeachersMale || 0);
+                const totalTeachersTypeFemale = (formData.civilTeachersFemale || 0) + (formData.govEmpTeachersFemale || 0) + (formData.hiredTeachersFemale || 0);
+                // ไม่ทราบวุฒิ = ครูผู้สอนทั้งหมด (ตามประเภทของครู) − ที่ระบุวุฒิแล้ว แยกชาย/หญิง (ระบุวุฒิเกินจำนวนครู → แจ้งเตือนแทน)
+                const unknownDegreeMale = Math.max(0, totalTeachersTypeMale - totalDegreeMale);
+                const unknownDegreeFemale = Math.max(0, totalTeachersTypeFemale - totalDegreeFemale);
+                const overDegreeMale = Math.max(0, totalDegreeMale - totalTeachersTypeMale);
+                const overDegreeFemale = Math.max(0, totalDegreeFemale - totalTeachersTypeFemale);
 
                 return (
                   <div
                     className={`rounded-3xl p-6 border transition-all space-y-6 ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Briefcase className="w-5 h-5 text-[#932d16]" />
+                        <Briefcase className="w-5 h-5 text-hx-932d16" />
                         <div>
                           <h3 className="text-base font-black text-slate-900">
                             2. ข้อมูลบุคลากรทางการศึกษา และวุฒิการศึกษา
@@ -2976,7 +3305,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           ⚡ กรุณาอัปเดตข้อมูล
                         </span>
                       )}
-                      {isLocked && (
+                      {lockedByAdmin && (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                           <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                         </span>
@@ -2984,7 +3313,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -2998,51 +3327,76 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </div>
                     )}
 
-                    {/* ครูผู้สอน ชาย - หญิง */}
+                    {/* ครูผู้สอนทั้งหมด ชาย - หญิง: นับจากการจำแนกตามประเภทของครู (ไม่ต้องกรอกเอง) */}
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-[#932d16]" />
-                        <span>จำนวนครูผู้สอนทั้งหมด ชาย - หญิง (คน)</span>
+                      <h4 className="text-xs font-bold text-slate-800 flex flex-wrap items-center justify-between gap-1">
+                        <span className="flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-hx-932d16" />
+                          <span>จำนวนครูผู้สอนทั้งหมด ชาย - หญิง (คน)</span>
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          นับอัตโนมัติจากการจำแนกตามประเภทของครู
+                        </span>
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-700">ครูผู้สอน ชาย (คน)</label>
-                          <input
-                            type="number"
-                            disabled={isLocked}
-                            value={formData.maleTeachers}
-                            onChange={(e) => handleInputChange('maleTeachers', Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-700">ครูผู้สอน หญิง (คน)</label>
-                          <input
-                            type="number"
-                            disabled={isLocked}
-                            value={formData.femaleTeachers}
-                            onChange={(e) => handleInputChange('femaleTeachers', Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500"
-                          />
-                        </div>
-                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 flex flex-col justify-center text-center">
-                          <span className="text-[11px] text-amber-900 font-semibold">รวมครูผู้สอน ชาย-หญิง</span>
-                          <span className="text-base font-black text-[#932d16]">
-                            {((formData.maleTeachers || 0) + (formData.femaleTeachers || 0)).toLocaleString()} คน
-                          </span>
-                        </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          { key: 'male', label: 'ครูผู้สอน ชาย', value: totalTeachersTypeMale, icon: User, tone: 'bg-sky-50 text-sky-700', text: 'text-sky-700' },
+                          { key: 'female', label: 'ครูผู้สอน หญิง', value: totalTeachersTypeFemale, icon: User, tone: 'bg-rose-50 text-rose-600', text: 'text-rose-600' },
+                          { key: 'total', label: 'รวมครูผู้สอน ชาย-หญิง', value: totalTeachersTypeMale + totalTeachersTypeFemale, icon: Users, tone: 'bg-amber-100 text-hx-932d16', text: 'text-hx-932d16' },
+                        ].map((card) => {
+                          const Icon = card.icon;
+                          const total = totalTeachersTypeMale + totalTeachersTypeFemale;
+                          return (
+                            <div
+                              key={card.key}
+                              className={`p-3.5 rounded-xl border flex items-center gap-3 ${
+                                card.key === 'total' ? 'bg-amber-50 border-amber-200/80' : 'bg-white border-slate-200'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.tone}`}>
+                                <Icon className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-semibold text-slate-500">{card.label}</div>
+                                <div className={`text-xl font-black leading-tight ${card.text}`}>
+                                  {card.value.toLocaleString()} <span className="text-xs font-bold">คน</span>
+                                </div>
+                                {card.key !== 'total' && (
+                                  <div className="text-[10px] text-slate-400">
+                                    {total > 0 ? `${Math.round((card.value / total) * 100)}% ของทั้งหมด` : '—'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
                     {/* ตารางวุฒิการศึกษา ชาย - หญิง */}
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                      <h4 className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex flex-wrap items-center justify-between gap-1">
                         <span className="flex items-center gap-1.5">
-                          <GraduationCap className="w-4 h-4 text-[#932d16]" />
+                          <GraduationCap className="w-4 h-4 text-hx-932d16" />
                           <span>จำแนกตามวุฒิการศึกษา (ชาย - หญิง)</span>
                         </span>
-                        <span className="text-[11px] text-slate-500 font-normal">
-                          รวมตามวุฒิ: {(totalDegreeMale + totalDegreeFemale).toLocaleString()} คน
+                        <span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[11px] text-slate-500 font-normal">
+                          <span>รวมตามวุฒิ: {(totalDegreeMale + totalDegreeFemale).toLocaleString()} คน</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-md font-semibold ${
+                              unknownDegreeMale + unknownDegreeFemale > 0 ? 'bg-amber-100 text-amber-900' : 'bg-slate-200/70 text-slate-600'
+                            }`}
+                            title="จำนวนครูผู้สอนทั้งหมด (ตามประเภทของครู) ที่ยังไม่ได้ระบุวุฒิการศึกษา"
+                          >
+                            ไม่ทราบวุฒิ: {(unknownDegreeMale + unknownDegreeFemale).toLocaleString()} คน
+                            <span className="font-normal opacity-80"> (ชาย {unknownDegreeMale.toLocaleString()} / หญิง {unknownDegreeFemale.toLocaleString()})</span>
+                          </span>
+                          {(overDegreeMale > 0 || overDegreeFemale > 0) && (
+                            <span className="px-2 py-0.5 rounded-md font-semibold bg-rose-100 text-rose-700">
+                              วุฒิเกินจำนวนครู{overDegreeMale > 0 ? ` ชาย ${overDegreeMale.toLocaleString()}` : ''}
+                              {overDegreeFemale > 0 ? ` หญิง ${overDegreeFemale.toLocaleString()}` : ''} คน
+                            </span>
+                          )}
                         </span>
                       </h4>
 
@@ -3062,22 +3416,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeAssociateMale}
-                                  onChange={(e) => handleInputChange('degreeAssociateMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeAssociateMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeAssociateFemale}
-                                  onChange={(e) => handleInputChange('degreeAssociateFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeAssociateFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.degreeAssociateMale || 0) + (formData.degreeAssociateFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
@@ -3086,22 +3442,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeBachelorMale}
-                                  onChange={(e) => handleInputChange('degreeBachelorMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeBachelorMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeBachelorFemale}
-                                  onChange={(e) => handleInputChange('degreeBachelorFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeBachelorFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.degreeBachelorMale || 0) + (formData.degreeBachelorFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
@@ -3110,22 +3468,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeMasterMale}
-                                  onChange={(e) => handleInputChange('degreeMasterMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeMasterMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeMasterFemale}
-                                  onChange={(e) => handleInputChange('degreeMasterFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeMasterFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.degreeMasterMale || 0) + (formData.degreeMasterFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
@@ -3134,22 +3494,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeDoctorMale}
-                                  onChange={(e) => handleInputChange('degreeDoctorMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeDoctorMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.degreeDoctorFemale}
-                                  onChange={(e) => handleInputChange('degreeDoctorFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('degreeDoctorFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.degreeDoctorMale || 0) + (formData.degreeDoctorFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
@@ -3162,7 +3524,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                       <h4 className="text-xs font-bold text-slate-800 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
-                          <CheckSquare className="w-4 h-4 text-[#932d16]" />
+                          <CheckSquare className="w-4 h-4 text-hx-932d16" />
                           <span>จำแนกตามประเภทของครู (ชาย - หญิง)</span>
                         </span>
                         <span className="text-[11px] text-slate-500 font-normal">
@@ -3186,46 +3548,76 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.civilTeachersMale}
-                                  onChange={(e) => handleInputChange('civilTeachersMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('civilTeachersMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.civilTeachersFemale}
-                                  onChange={(e) => handleInputChange('civilTeachersFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('civilTeachersFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.civilTeachersMale || 0) + (formData.civilTeachersFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
                             <tr>
-                              <td className="py-2 px-3 font-semibold text-slate-800">2. ครูอัตราจ้าง</td>
+                              <td className="py-2 px-3 font-semibold text-slate-800">2. พนักงานราชการ (ครู)</td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
+                                  disabled={isLocked}
+                                  value={formData.govEmpTeachersMale}
+                                  onChange={(e) => handleInputChange('govEmpTeachersMale', toCount(e.target.value))}
+                                  className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
+                                />
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <input
+                                  type="number"
+                                  {...countInputProps}
+                                  disabled={isLocked}
+                                  value={formData.govEmpTeachersFemale}
+                                  onChange={(e) => handleInputChange('govEmpTeachersFemale', toCount(e.target.value))}
+                                  className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
+                                />
+                              </td>
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
+                                {((formData.govEmpTeachersMale || 0) + (formData.govEmpTeachersFemale || 0)).toLocaleString()}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 font-semibold text-slate-800">3. ครูอัตราจ้าง</td>
+                              <td className="py-2 px-3 text-center">
+                                <input
+                                  type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.hiredTeachersMale}
-                                  onChange={(e) => handleInputChange('hiredTeachersMale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('hiredTeachersMale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="py-2 px-3 text-center">
                                 <input
                                   type="number"
+                                  {...countInputProps}
                                   disabled={isLocked}
                                   value={formData.hiredTeachersFemale}
-                                  onChange={(e) => handleInputChange('hiredTeachersFemale', Number(e.target.value))}
+                                  onChange={(e) => handleInputChange('hiredTeachersFemale', toCount(e.target.value))}
                                   className="w-24 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center mx-auto block disabled:bg-slate-100"
                                 />
                               </td>
-                              <td className="py-2 px-3 text-center font-bold text-[#932d16]">
+                              <td className="py-2 px-3 text-center font-bold text-hx-932d16">
                                 {((formData.hiredTeachersMale || 0) + (formData.hiredTeachersFemale || 0)).toLocaleString()}
                               </td>
                             </tr>
@@ -3241,7 +3633,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   SECTION 3: สถิตินักเรียนแยกชั้นปี และสารสนเทศอาชีวศึกษา
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'grades') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGrades);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGrades);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_2';
                 const totalPending = (formData.pendingGradM3 || 0) + (formData.pendingGradM6 || 0) + (formData.pendingGradVoc3 || 0);
 
@@ -3250,14 +3643,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className={`rounded-3xl p-6 border transition-all space-y-6 ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-[#932d16]" />
+                        <Users className="w-5 h-5 text-hx-932d16" />
                         <h3 className="text-base font-black text-slate-900">
                           3. สถิตินักเรียนแยกตามชั้นปี และสารสนเทศอาชีวศึกษา
                         </h3>
@@ -3267,7 +3660,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           ⚡ กรุณาอัปเดตข้อมูล
                         </span>
                       )}
-                      {isLocked && (
+                      {lockedByAdmin && (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                           <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                         </span>
@@ -3275,7 +3668,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -3295,9 +3688,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">นักเรียน ชาย (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.maleStudents}
-                          onChange={(e) => handleInputChange('maleStudents', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('maleStudents', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3305,15 +3699,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">นักเรียน หญิง (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.femaleStudents}
-                          onChange={(e) => handleInputChange('femaleStudents', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('femaleStudents', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
                       <div className="p-3 bg-slate-100 rounded-xl flex flex-col justify-center text-center">
                         <span className="text-[11px] text-slate-500 font-semibold">รวมทั้งหมด</span>
-                        <span className="text-base font-black text-[#932d16]">
+                        <span className="text-base font-black text-hx-932d16">
                           {(formData.maleStudents + formData.femaleStudents).toLocaleString()} คน
                         </span>
                       </div>
@@ -3335,9 +3730,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <label className="text-[11px] font-medium text-slate-600">{g.label}</label>
                             <input
                               type="number"
+                              {...countInputProps}
                               disabled={isLocked}
                               value={(formData as any)[g.key]}
-                              onChange={(e) => handleInputChange(g.key, Number(e.target.value))}
+                              onChange={(e) => handleInputChange(g.key, toCount(e.target.value))}
                               className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                             />
                           </div>
@@ -3356,9 +3752,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนในระบบทวิภาคีรวม (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.dveStudentsCount}
-                            onChange={(e) => handleInputChange('dveStudentsCount', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('dveStudentsCount', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3367,9 +3764,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนโครงการทวิศึกษา (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.dualStudyCount}
-                            onChange={(e) => handleInputChange('dualStudyCount', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('dualStudyCount', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3378,9 +3776,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนโครงการทวิวุฒิ (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.dualDegreeCount}
-                            onChange={(e) => handleInputChange('dualDegreeCount', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('dualDegreeCount', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3403,7 +3802,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             disabled={isLocked}
                             checked={!!formData.fttAssessment}
                             onChange={(e) => handleInputChange('fttAssessment', e.target.checked)}
-                            className="w-4 h-4 text-[#932d16] rounded border-slate-300 focus:ring-[#932d16]"
+                            className="w-4 h-4 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
                           />
                           <span className={`text-xs font-bold ${formData.fttAssessment ? 'text-emerald-700' : 'text-slate-500'}`}>
                             {formData.fttAssessment ? '✓ เข้าร่วมการประเมินแล้ว' : 'ยังไม่ได้เข้าร่วม'}
@@ -3428,9 +3827,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนค้างจบ ม.3 (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.pendingGradM3}
-                            onChange={(e) => handleInputChange('pendingGradM3', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('pendingGradM3', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3439,9 +3839,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนค้างจบ ม.6 (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.pendingGradM6}
-                            onChange={(e) => handleInputChange('pendingGradM6', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('pendingGradM6', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3450,9 +3851,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <label className="text-xs font-bold text-slate-700">นักเรียนค้างจบ ปวช.3 (คน)</label>
                           <input
                             type="number"
+                            {...countInputProps}
                             disabled={isLocked}
                             value={formData.pendingGradVoc3}
-                            onChange={(e) => handleInputChange('pendingGradVoc3', Number(e.target.value))}
+                            onChange={(e) => handleInputChange('pendingGradVoc3', toCount(e.target.value))}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100"
                             placeholder="0"
                           />
@@ -3467,7 +3869,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   SECTION 4: การจัดการศึกษาระบบทวิภาคี (จำแนกตามแผนกวิชา)
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'dve') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionDve);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionDve);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_dve';
                 const totalDveStudents = dveDepartments.reduce((s, d) => s + (Number(d.studentCount) || 0), 0);
 
@@ -3476,14 +3879,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className={`rounded-3xl p-6 border transition-all space-y-5 ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-[#932d16]" />
+                        <BookOpen className="w-5 h-5 text-hx-932d16" />
                         <div>
                           <h3 className="text-base font-black text-slate-900">
                             4. การจัดการศึกษาระบบทวิภาคี (จำแนกตามแผนกวิชา)
@@ -3500,7 +3903,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             ⚡ กรุณาอัปเดตข้อมูล
                           </span>
                         )}
-                        {isLocked && (
+                        {lockedByAdmin && (
                           <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                             <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                           </span>
@@ -3533,7 +3936,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -3556,7 +3959,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <button
                             type="button"
                             onClick={handleAddDveRow}
-                            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#932d16] text-white rounded-xl text-xs font-bold shadow cursor-pointer"
+                            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-hx-932d16 text-white rounded-xl text-xs font-bold shadow cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>+ เพิ่มแผนกวิชาแรก</span>
@@ -3587,18 +3990,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 value={dept.departmentName}
                                 onChange={(e) => handleUpdateDveRow(index, 'departmentName', e.target.value)}
                                 placeholder="เช่น แผนกวิชาช่างยนต์, แผนกวิชาการบัญชี"
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                               />
                             </div>
                             <div className="col-span-3 sm:col-span-2">
                               <input
                                 type="number"
-                                min="0"
+                                {...countInputProps}
                                 disabled={isLocked}
                                 value={dept.studentCount}
-                                onChange={(e) => handleUpdateDveRow(index, 'studentCount', Number(e.target.value))}
+                                onChange={(e) => handleUpdateDveRow(index, 'studentCount', toCount(e.target.value))}
                                 placeholder="0"
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center text-[#932d16] focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center text-hx-932d16 focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                               />
                             </div>
                             <div className="col-span-1 text-center">
@@ -3625,7 +4028,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   SECTION 5: ข้อมูลห้องเรียนอาชีพ & Reskill-Upskill
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'career') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionCareer);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionCareer);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_career';
                 const totalCareerStudents = careerClassrooms.reduce((s, c) => s + (Number(c.studentCount) || 0), 0);
 
@@ -3634,14 +4038,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className={`rounded-3xl p-6 border transition-all space-y-5 ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <Award className="w-5 h-5 text-[#932d16]" />
+                        <Award className="w-5 h-5 text-hx-932d16" />
                         <div>
                           <h3 className="text-base font-black text-slate-900">
                             5. ข้อมูลห้องเรียนอาชีพ & Reskill-Upskill
@@ -3658,7 +4062,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             ⚡ กรุณาอัปเดตข้อมูล
                           </span>
                         )}
-                        {isLocked && (
+                        {lockedByAdmin && (
                           <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                             <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                           </span>
@@ -3691,7 +4095,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -3714,7 +4118,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <button
                             type="button"
                             onClick={handleAddCareerRow}
-                            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#932d16] text-white rounded-xl text-xs font-bold shadow cursor-pointer"
+                            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-hx-932d16 text-white rounded-xl text-xs font-bold shadow cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>+ เพิ่มหลักสูตรแรก</span>
@@ -3730,7 +4134,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           >
                             <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="w-5 h-5 rounded-full bg-[#932d16] text-white flex items-center justify-center text-[10px] font-black">
+                                <span className="w-5 h-5 rounded-full bg-hx-932d16 text-white flex items-center justify-center text-[10px] font-black">
                                   {index + 1}
                                 </span>
                                 <span className="text-xs font-black text-slate-800">
@@ -3762,7 +4166,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   value={cls.courseName}
                                   onChange={(e) => handleUpdateCareerRow(index, 'courseName', e.target.value)}
                                   placeholder="เช่น หลักสูตรการซ่อมบำรุงยานยนต์ไฟฟ้า (EV Fundamentals)"
-                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                                 />
                               </div>
 
@@ -3772,7 +4176,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   disabled={isLocked}
                                   value={cls.trainingType || 'SHORT_COURSE'}
                                   onChange={(e) => handleUpdateCareerRow(index, 'trainingType', e.target.value)}
-                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                                 >
                                   <option value="SHORT_COURSE">วิชาชีพระยะสั้น</option>
                                   <option value="RESKILL_UPSKILL">Reskill / Upskill</option>
@@ -3785,7 +4189,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   disabled={isLocked}
                                   value={cls.learningFormat || 'ONSITE'}
                                   onChange={(e) => handleUpdateCareerRow(index, 'learningFormat', e.target.value)}
-                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                                 >
                                   <option value="ONSITE">On-site ในสถานศึกษา</option>
                                   <option value="WORKPLACE">ฝึกในสถานประกอบการ</option>
@@ -3799,7 +4203,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-2">
-                                  <School className="w-4 h-4 text-[#932d16]" />
+                                  <School className="w-4 h-4 text-hx-932d16" />
                                   <span className="text-xs font-bold text-slate-800">
                                     โรงเรียนเครือข่ายที่เข้าร่วมและจำนวนนักเรียน (นับรายหัว)
                                   </span>
@@ -3811,7 +4215,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleAddPartnerSchool(index)}
-                                    className="inline-flex items-center gap-1 text-xs font-bold text-[#932d16] hover:text-white hover:bg-[#932d16] bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-300/80 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                    className="inline-flex items-center gap-1 text-xs font-bold text-hx-932d16 hover:text-white hover:bg-hx-932d16 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-300/80 transition-all cursor-pointer shadow-2xs active:scale-95"
                                   >
                                     <Plus className="w-3.5 h-3.5" />
                                     <span>+ เพิ่มโรงเรียนเครือข่าย</span>
@@ -3836,7 +4240,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                         value={school.schoolName}
                                         onChange={(e) => handleUpdatePartnerSchool(index, sIndex, 'schoolName', e.target.value)}
                                         placeholder="ระบุชื่อโรงเรียนเครือข่าย เช่น รร.อุดรพิทยานุกูล"
-                                        className="flex-1 px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                        className="flex-1 px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                                       />
                                     </div>
 
@@ -3845,12 +4249,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                         <span className="text-[11px] font-semibold text-slate-500">จำนวน:</span>
                                         <input
                                           type="number"
-                                          min="0"
+                                          {...countInputProps}
                                           disabled={isLocked}
                                           value={school.studentCount === 0 ? '' : school.studentCount}
                                           onChange={(e) => handleUpdatePartnerSchool(index, sIndex, 'studentCount', e.target.value)}
                                           placeholder="0"
-                                          className="w-20 px-2 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-black text-[#932d16] text-right focus:outline-none focus:ring-2 focus:ring-[#932d16]/20 disabled:bg-slate-100"
+                                          className="w-20 px-2 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-black text-hx-932d16 text-right focus:outline-none focus:ring-2 focus:ring-hx-932d16/20 disabled:bg-slate-100"
                                         />
                                         <span className="text-[11px] font-semibold text-slate-500">คน</span>
                                       </div>
@@ -3882,21 +4286,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   SECTION 6: ผู้สำเร็จการศึกษา และภาวะการมีงานทำ
                  ========================================================== */}
               {(activeFormSection === 'all' || activeFormSection === 'graduates') && (() => {
-                const isLocked = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGraduates);
+                const lockedByAdmin = !isSuperAdmin && (!schoolOpenStatus || !schoolPermissions.allowSectionGraduates);
+                const isLocked = isViewOnly || lockedByAdmin;
                 const isGlow = schoolPermissions.glowSection === 'section_3';
                 return (
                   <div
                     className={`rounded-3xl p-6 border transition-all ${
                       isGlow
                         ? 'glow-border-only'
-                        : isLocked
+                        : lockedByAdmin
                         ? 'border-slate-200 bg-slate-50/60'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <GraduationCap className="w-5 h-5 text-[#932d16]" />
+                        <GraduationCap className="w-5 h-5 text-hx-932d16" />
                         <h3 className="text-base font-black text-slate-900">
                           6. ผู้สำเร็จการศึกษา และภาวะการมีงานทำ
                         </h3>
@@ -3906,7 +4311,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           ⚡ กรุณาอัปเดตข้อมูล
                         </span>
                       )}
-                      {isLocked && (
+                      {lockedByAdmin && (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1">
                           <Lock className="w-3 h-3" /> ล็อกโดย สอจ. (อ่านอย่างเดียว)
                         </span>
@@ -3914,7 +4319,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     {/* Guidance banner when locked */}
-                    {isLocked && (
+                    {lockedByAdmin && !isViewOnly && (
                       <div className="mb-5 p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-xs">
                         <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                         <div className="text-xs">
@@ -3933,9 +4338,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ปวช. สำเร็จการศึกษา (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.gradVocCertCount}
-                          onChange={(e) => handleInputChange('gradVocCertCount', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('gradVocCertCount', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3943,9 +4349,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ปวส. สำเร็จการศึกษา (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.gradHighVocCertCount}
-                          onChange={(e) => handleInputChange('gradHighVocCertCount', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('gradHighVocCertCount', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3953,9 +4360,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ทำงานตรงสาขา (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.employedInField}
-                          onChange={(e) => handleInputChange('employedInField', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('employedInField', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3963,9 +4371,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ทำงานไม่ตรงสาขา (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.employedOutField}
-                          onChange={(e) => handleInputChange('employedOutField', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('employedOutField', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3973,9 +4382,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ประกอบอาชีพอิสระ (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.employedFreelance}
-                          onChange={(e) => handleInputChange('employedFreelance', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('employedFreelance', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3983,9 +4393,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <label className="text-xs font-bold text-slate-700">ศึกษาต่อ (คน)</label>
                         <input
                           type="number"
+                          {...countInputProps}
                           disabled={isLocked}
                           value={formData.furtherStudyCount}
-                          onChange={(e) => handleInputChange('furtherStudyCount', Number(e.target.value))}
+                          onChange={(e) => handleInputChange('furtherStudyCount', toCount(e.target.value))}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                         />
                       </div>
@@ -3997,7 +4408,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               {/* Submit Button & Lock Notice */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
                 <div className="text-xs text-slate-500">
-                  {!isSuperAdmin && !schoolOpenStatus ? (
+                  {isViewOnly ? (
+                    <span className="flex items-center gap-1.5">
+                      <Eye className="w-4 h-4 shrink-0" />
+                      แท็บ "ทุกส่วน" ใช้ดูข้อมูลอย่างเดียว เลือกแท็บของหมวดเพื่อแก้ไข
+                    </span>
+                  ) : !isSuperAdmin && !schoolOpenStatus ? (
                     <span className="text-rose-600 font-bold flex items-center gap-1.5">
                       <Lock className="w-4 h-4 shrink-0" />
                       ขณะนี้ระบบปิดรับการรายงานข้อมูลสถิติโดย สอจ.อุดรธานี
@@ -4007,16 +4423,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={savingStat || (!isSuperAdmin && !schoolOpenStatus)}
-                  className="w-full sm:w-auto px-8 py-3.5 bg-[#932d16] hover:bg-[#7a2411] text-white font-bold text-sm rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
-                >
-                  <Save className="w-5 h-5" />
-                  <span>{savingStat ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถิติของสถานศึกษา'}</span>
-                </button>
+                {!isViewOnly && (
+                  <button
+                    type="submit"
+                    disabled={savingStat || (!isSuperAdmin && !schoolOpenStatus)}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-hx-932d16 hover:bg-hx-7a2411 text-white font-bold text-sm rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                  >
+                    <Save className="w-5 h-5" />
+                    <span>{savingStat ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถิติของสถานศึกษา'}</span>
+                  </button>
+                )}
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
@@ -4035,7 +4454,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
-              <School className="w-5 h-5 text-[#932d16]" />
+              <School className="w-5 h-5 text-hx-932d16" />
               <span>เพิ่มสถานศึกษาใหม่ในสังกัด</span>
             </h3>
             <form onSubmit={handleCreateInstitution} className="space-y-3">
@@ -4146,7 +4565,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <button
                   type="submit"
                   disabled={creatingInst}
-                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
+                  className="px-5 py-2 text-xs font-bold bg-hx-932d16 text-white rounded-xl shadow"
                 >
                   {creatingInst ? 'กำลังบันทึก...' : 'บันทึกสถานศึกษา'}
                 </button>
@@ -4167,7 +4586,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-[#932d16]" />
+              <UserPlus className="w-5 h-5 text-hx-932d16" />
               <span>{editingUserId ? 'แก้ไขบัญชีผู้ใช้งาน' : 'เพิ่มบัญชีผู้ใช้งานใหม่'}</span>
             </h3>
             <form onSubmit={handleSaveUser} className="space-y-3">
@@ -4256,71 +4675,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <button
                   type="submit"
                   disabled={savingUser}
-                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
+                  className="px-5 py-2 text-xs font-bold bg-hx-932d16 text-white rounded-xl shadow"
                 >
                   {savingUser ? 'กำลังบันทึก...' : 'บันทึกข้อมูลผู้ใช้'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Modal Edit Contact Info */}
-      {showContactModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative">
-            <button
-              onClick={() => setShowContactModal(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-[#932d16]" />
-              <span>แก้ไขข้อมูลติดต่อ สอจ. (Footer Info)</span>
-            </h3>
-            <form onSubmit={handleSaveContactInfo} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">ที่อยู่สำนักงาน สอจ.</label>
-                <textarea
-                  rows={2}
-                  value={contactAddress}
-                  onChange={(e) => setContactAddress(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">เบอร์โทรศัพท์</label>
-                <input
-                  type="text"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">ลิงก์เฟซบุ๊กแฟนเพจ</label>
-                <input
-                  type="url"
-                  value={contactFacebook}
-                  onChange={(e) => setContactFacebook(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowContactModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-[#932d16] text-white rounded-xl shadow"
-                >
-                  บันทึกข้อมูลติดต่อ
                 </button>
               </div>
             </form>

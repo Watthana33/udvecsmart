@@ -1,7 +1,12 @@
+import { getSubmissionLocks, SECTION_STAT_FIELDS, GENERAL_INSTITUTION_FIELDS, SectionName } from '../services/submissionLock.js';
+import { firstLinkError } from '../utils/linkValidation.js';
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
+
+// จำนวนคน/จำนวนนับ: จำนวนเต็มไม่ติดลบเสมอ (กันค่าติดลบ/ทศนิยมที่ส่งตรงมาที่ API)
+const toCount = (value: unknown): number => Math.max(0, Math.floor(Number(value) || 0));
 
 /**
  * ดึงสถิติภาพรวม (หรือสถิติเฉพาะวิทยาลัยที่เลือก)
@@ -197,7 +202,6 @@ export async function getStatsOverview(req: Request, res: Response): Promise<voi
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถคำนวณสถิติภาพรวมได้',
-      detail: error.message,
     });
   }
 }
@@ -283,7 +287,6 @@ export async function getStatsByInstitution(req: Request, res: Response): Promis
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสถิติรายสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -395,7 +398,6 @@ export async function getMySchoolStat(req: AuthRequest, res: Response): Promise<
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสถิติของสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -424,6 +426,12 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     }
 
     const body = req.body;
+
+    const linkErr = firstLinkError([[body.website, 'เว็บไซต์'], [body.programsUrl, 'ลิงก์รายชื่อสาขาวิชา']], [[body.photoUrl, 'รูปผู้บริหาร']]);
+    if (linkErr) {
+      res.status(400).json({ status: 'error', message: linkErr });
+      return;
+    }
     const targetInstitutionId = userRole === Role.SUPER_ADMIN ? (body.institutionId || userInstitutionId) : userInstitutionId;
 
     if (!targetInstitutionId) {
@@ -437,15 +445,35 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     const academicYear = Number(body.academicYear) || 2568;
     const semester = Number(body.semester) || 1;
 
-    let maleStudents = Number(body.maleStudents) || 0;
-    let femaleStudents = Number(body.femaleStudents) || 0;
+    // หมวดที่ สอจ. ล็อกไว้: แอดมินวิทยาลัยแก้ไม่ได้ — ใช้ค่าเดิมในฐานข้อมูลแทนค่าที่ส่งมา (หมวดอื่นบันทึกได้ตามปกติ)
+    const lockedSections: SectionName[] = [];
+    if (userRole !== Role.SUPER_ADMIN) {
+      const { locked } = await getSubmissionLocks();
+      if (locked.size > 0) {
+        const existing = await prisma.schoolStat.findUnique({
+          where: { institutionId_academicYear_semester: { institutionId: targetInstitutionId, academicYear, semester } },
+        });
+        for (const section of locked) {
+          lockedSections.push(section);
+          for (const field of SECTION_STAT_FIELDS[section] ?? []) {
+            body[field] = existing ? (existing as Record<string, unknown>)[field] : undefined;
+          }
+          if (section === 'general') {
+            for (const field of GENERAL_INSTITUTION_FIELDS) delete body[field];
+          }
+        }
+      }
+    }
 
-    const vocCert1 = Number(body.vocCert1) || 0;
-    const vocCert2 = Number(body.vocCert2) || 0;
-    const vocCert3 = Number(body.vocCert3) || 0;
-    const highVocCert1 = Number(body.highVocCert1) || 0;
-    const highVocCert2 = Number(body.highVocCert2) || 0;
-    const bachelorCount = Number(body.bachelorCount) || 0;
+    let maleStudents = toCount(body.maleStudents);
+    let femaleStudents = toCount(body.femaleStudents);
+
+    const vocCert1 = toCount(body.vocCert1);
+    const vocCert2 = toCount(body.vocCert2);
+    const vocCert3 = toCount(body.vocCert3);
+    const highVocCert1 = toCount(body.highVocCert1);
+    const highVocCert2 = toCount(body.highVocCert2);
+    const bachelorCount = toCount(body.bachelorCount);
 
     const vocCertCount = vocCert1 + vocCert2 + vocCert3;
     const highVocCertCount = highVocCert1 + highVocCert2;
@@ -465,55 +493,57 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
       }
     }
 
-    const maleTeachers = Number(body.maleTeachers) || 0;
-    const femaleTeachers = Number(body.femaleTeachers) || 0;
-    let totalTeachers = Number(body.totalTeachers) || 0;
+    const maleTeachers = toCount(body.maleTeachers);
+    const femaleTeachers = toCount(body.femaleTeachers);
+    let totalTeachers = toCount(body.totalTeachers);
     if (totalTeachers === 0 && (maleTeachers + femaleTeachers) > 0) {
       totalTeachers = maleTeachers + femaleTeachers;
     }
 
-    const totalExecutives = Number(body.totalExecutives) || 1;
-    const totalStaff = Number(body.totalStaff) || 0;
+    const totalExecutives = toCount(body.totalExecutives) || 1;
+    const totalStaff = toCount(body.totalStaff);
 
-    const gradVocCertCount = Number(body.gradVocCertCount) || 0;
-    const gradHighVocCertCount = Number(body.gradHighVocCertCount) || 0;
+    const gradVocCertCount = toCount(body.gradVocCertCount);
+    const gradHighVocCertCount = toCount(body.gradHighVocCertCount);
 
-    const employedInField = Number(body.employedInField) || 0;
-    const employedOutField = Number(body.employedOutField) || 0;
-    const employedFreelance = Number(body.employedFreelance) || 0;
+    const employedInField = toCount(body.employedInField);
+    const employedOutField = toCount(body.employedOutField);
+    const employedFreelance = toCount(body.employedFreelance);
     const employedGraduatesCount = employedInField + employedOutField + employedFreelance;
 
-    const furtherStudyCount = Number(body.furtherStudyCount) || 0;
-    const unemployedCount = Number(body.unemployedCount) || 0;
+    const furtherStudyCount = toCount(body.furtherStudyCount);
+    const unemployedCount = toCount(body.unemployedCount);
 
-    const workGov = Number(body.workGov) || 0;
-    const workPrivate = Number(body.workPrivate) || 0;
-    const workSelf = Number(body.workSelf) || 0;
+    const workGov = toCount(body.workGov);
+    const workPrivate = toCount(body.workPrivate);
+    const workSelf = toCount(body.workSelf);
 
     // กลุ่ม 2: สถิตินักเรียนศึกษาต่อ แต่ยังไม่สำเร็จการศึกษา
-    const pendingGradM3 = Number(body.pendingGradM3) || 0;
-    const pendingGradM6 = Number(body.pendingGradM6) || 0;
-    const pendingGradVoc3 = Number(body.pendingGradVoc3) || 0;
+    const pendingGradM3 = toCount(body.pendingGradM3);
+    const pendingGradM6 = toCount(body.pendingGradM6);
+    const pendingGradVoc3 = toCount(body.pendingGradVoc3);
 
     // กลุ่ม 3: ข้อมูลสารสนเทศด้านการจัดการอาชีวศึกษา
-    const dveStudentsCount = Number(body.dveStudentsCount) || 0;
-    const dualStudyCount = Number(body.dualStudyCount) || 0;
-    const dualDegreeCount = Number(body.dualDegreeCount) || 0;
+    const dveStudentsCount = toCount(body.dveStudentsCount);
+    const dualStudyCount = toCount(body.dualStudyCount);
+    const dualDegreeCount = toCount(body.dualDegreeCount);
     const fttAssessment = Boolean(body.fttAssessment);
 
     // กลุ่ม 4: ข้อมูลบุคลากรทางการศึกษา จำแนกเพศและวุฒิการศึกษา
-    const degreeAssociateMale = Number(body.degreeAssociateMale) || 0;
-    const degreeAssociateFemale = Number(body.degreeAssociateFemale) || 0;
-    const degreeBachelorMale = Number(body.degreeBachelorMale) || 0;
-    const degreeBachelorFemale = Number(body.degreeBachelorFemale) || 0;
-    const degreeMasterMale = Number(body.degreeMasterMale) || 0;
-    const degreeMasterFemale = Number(body.degreeMasterFemale) || 0;
-    const degreeDoctorMale = Number(body.degreeDoctorMale) || 0;
-    const degreeDoctorFemale = Number(body.degreeDoctorFemale) || 0;
-    const civilTeachersMale = Number(body.civilTeachersMale) || 0;
-    const civilTeachersFemale = Number(body.civilTeachersFemale) || 0;
-    const hiredTeachersMale = Number(body.hiredTeachersMale) || 0;
-    const hiredTeachersFemale = Number(body.hiredTeachersFemale) || 0;
+    const degreeAssociateMale = toCount(body.degreeAssociateMale);
+    const degreeAssociateFemale = toCount(body.degreeAssociateFemale);
+    const degreeBachelorMale = toCount(body.degreeBachelorMale);
+    const degreeBachelorFemale = toCount(body.degreeBachelorFemale);
+    const degreeMasterMale = toCount(body.degreeMasterMale);
+    const degreeMasterFemale = toCount(body.degreeMasterFemale);
+    const degreeDoctorMale = toCount(body.degreeDoctorMale);
+    const degreeDoctorFemale = toCount(body.degreeDoctorFemale);
+    const civilTeachersMale = toCount(body.civilTeachersMale);
+    const civilTeachersFemale = toCount(body.civilTeachersFemale);
+    const hiredTeachersMale = toCount(body.hiredTeachersMale);
+    const hiredTeachersFemale = toCount(body.hiredTeachersFemale);
+    const govEmpTeachersMale = toCount(body.govEmpTeachersMale);
+    const govEmpTeachersFemale = toCount(body.govEmpTeachersFemale);
 
     const stat = await prisma.schoolStat.upsert({
       where: {
@@ -559,6 +589,8 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         civilTeachersFemale,
         hiredTeachersMale,
         hiredTeachersFemale,
+        govEmpTeachersMale,
+        govEmpTeachersFemale,
         gradVocCertCount,
         gradHighVocCertCount,
         employedGraduatesCount,
@@ -610,6 +642,8 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
         civilTeachersFemale,
         hiredTeachersMale,
         hiredTeachersFemale,
+        govEmpTeachersMale,
+        govEmpTeachersFemale,
         gradVocCertCount,
         gradHighVocCertCount,
         employedGraduatesCount,
@@ -633,7 +667,7 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
           ...(body.phone !== undefined ? { phone: body.phone } : {}),
           ...(body.website !== undefined ? { website: body.website } : {}),
           ...(body.address !== undefined ? { address: body.address } : {}),
-          ...(body.programsCount !== undefined ? { programsCount: Number(body.programsCount) } : {}),
+          ...(body.programsCount !== undefined ? { programsCount: toCount(body.programsCount) } : {}),
           ...(body.programsList !== undefined ? { programsList: typeof body.programsList === 'string' ? body.programsList : JSON.stringify(body.programsList) } : {}),
           ...(body.programsUrl !== undefined ? { programsUrl: body.programsUrl } : {}),
         },
@@ -676,7 +710,6 @@ export async function submitSchoolStat(req: AuthRequest, res: Response): Promise
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถบันทึกข้อมูลสถิติได้',
-      detail: error.message,
     });
   }
 }
@@ -812,7 +845,6 @@ export async function getSubmissionStatusList(req: Request, res: Response): Prom
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสถานะการส่งข้อมูลได้',
-      detail: error.message,
     });
   }
 }

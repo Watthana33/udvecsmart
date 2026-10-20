@@ -42,3 +42,9 @@ logs/
 /*.html
 /*.bat
 /PROJECT_REQUIREMENTS.md
+
+# รูปที่ผู้ใช้อัปโหลด (ข้อมูลของระบบ ไม่ใช่โค้ด)
+uploads/
+
+# โฟลเดอร์ชั่วคราวของระบบ
+/private/

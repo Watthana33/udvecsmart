@@ -1,3 +1,5 @@
+import { firstLinkError } from '../utils/linkValidation.js';
+import { getSubmissionLocks, SECTION_LABELS } from '../services/submissionLock.js';
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { InstitutionType, Role } from '@prisma/client';
@@ -77,7 +79,6 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -126,7 +127,6 @@ export async function getInstitutionById(req: Request, res: Response): Promise<v
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -149,7 +149,26 @@ export async function updateInstitutionDirector(req: AuthRequest, res: Response)
       return;
     }
 
+    // ข้อมูลผู้บริหาร/ติดต่อ/สาขาวิชา อยู่ในหมวด "ข้อมูลทั่วไป" — บังคับการปิดรับข้อมูลเหมือน submitSchoolStat
+    if (user?.role !== Role.SUPER_ADMIN) {
+      const { open, locked } = await getSubmissionLocks();
+      if (!open) {
+        res.status(403).json({ status: 'error', message: 'ขณะนี้ระบบปิดรับการรายงานข้อมูล กรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี' });
+        return;
+      }
+      if (locked.has('general')) {
+        res.status(403).json({ status: 'error', message: `หมวด${SECTION_LABELS.general}ถูกปิดรับการแก้ไขโดย สอจ.อุดรธานี` });
+        return;
+      }
+    }
+
     const { name, shortName, directorName, position, photoUrl, phone, website, address, programsCount, programsList, programsUrl } = req.body;
+
+    const linkErr = firstLinkError([[website, 'เว็บไซต์'], [programsUrl, 'ลิงก์รายชื่อสาขาวิชา']], [[photoUrl, 'รูปผู้บริหาร']]);
+    if (linkErr) {
+      res.status(400).json({ status: 'error', message: linkErr });
+      return;
+    }
 
     // 1. อัปเดตข้อมูลสถานศึกษา
     const updatedInst = await prisma.institution.update({
@@ -212,7 +231,6 @@ export async function updateInstitutionDirector(req: AuthRequest, res: Response)
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถอัปเดตข้อมูลผู้บริหารได้',
-      detail: error.message,
     });
   }
 }
@@ -232,6 +250,12 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
     }
 
     const { code, name, shortName, order, type, directorName, phone, website, address, programsCount, programsList, programsUrl } = req.body;
+
+    const linkErr = firstLinkError([[website, 'เว็บไซต์'], [programsUrl, 'ลิงก์รายชื่อสาขาวิชา']], []);
+    if (linkErr) {
+      res.status(400).json({ status: 'error', message: linkErr });
+      return;
+    }
 
     if (!code || !name) {
       res.status(400).json({
@@ -292,7 +316,6 @@ export async function createInstitution(req: AuthRequest, res: Response): Promis
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถสร้างสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -382,7 +405,6 @@ export async function deleteInstitution(req: AuthRequest, res: Response): Promis
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถลบสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }
@@ -429,7 +451,6 @@ export async function reorderInstitutions(req: AuthRequest, res: Response): Prom
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถปรับลำดับสถานศึกษาได้',
-      detail: error.message,
     });
   }
 }

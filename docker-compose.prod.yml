@@ -36,6 +36,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-key-32chars}
       JWT_EXPIRES_IN: 7d
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      # ไฟล์รูปที่แอดมินอัปโหลด (ต้นฉบับ + รูปแสดงผล) เก็บบนดิสก์ของเครื่อง — ต้องรวมโฟลเดอร์ ./uploads ในการสำรองข้อมูลด้วย
+      - ./uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

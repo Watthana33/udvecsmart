@@ -1,3 +1,5 @@
+import { shouldCountNewsView } from '../middlewares/rateLimit.js';
+import { firstLinkError } from '../utils/linkValidation.js';
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { NewsCategory } from '@prisma/client';
@@ -86,7 +88,6 @@ export async function getNewsList(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -107,7 +108,8 @@ export async function getNewsById(req: Request, res: Response): Promise<void> {
       },
       data: {
         viewCount: {
-          increment: 1,
+          // IP เดียวกันดูข่าวเดิมซ้ำภายใน 30 นาที ไม่นับเพิ่ม
+          increment: shouldCountNewsView(req.ip, id) ? 1 : 0,
         },
       },
       select: {
@@ -145,7 +147,6 @@ export async function getNewsById(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -157,6 +158,12 @@ export async function getNewsById(req: Request, res: Response): Promise<void> {
 export async function createNews(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { title, content, coverImageUrl, category, linkUrl } = req.body;
+
+    const linkErr = firstLinkError([[linkUrl, 'ลิงก์ข่าว']], [[coverImageUrl, 'รูปปกข่าว']]);
+    if (linkErr) {
+      res.status(400).json({ status: 'error', message: linkErr });
+      return;
+    }
     if (!title || !content) {
       res.status(400).json({
         status: 'error',
@@ -188,7 +195,6 @@ export async function createNews(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถสร้างข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -201,6 +207,12 @@ export async function updateNews(req: AuthRequest, res: Response): Promise<void>
   try {
     const { id } = req.params;
     const { title, content, coverImageUrl, category, linkUrl } = req.body;
+
+    const linkErr = firstLinkError([[linkUrl, 'ลิงก์ข่าว']], [[coverImageUrl, 'รูปปกข่าว']]);
+    if (linkErr) {
+      res.status(400).json({ status: 'error', message: linkErr });
+      return;
+    }
 
     if (!title || !content) {
       res.status(400).json({
@@ -238,7 +250,6 @@ export async function updateNews(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถแก้ไขข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -270,7 +281,6 @@ export async function deleteNews(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถลบข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -310,7 +320,6 @@ export async function reorderNews(req: AuthRequest, res: Response): Promise<void
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถปรับลำดับข่าวสารได้',
-      detail: error.message,
     });
   }
 }
@@ -326,7 +335,8 @@ export async function incrementNewsView(req: Request, res: Response): Promise<vo
       where: { id },
       data: {
         viewCount: {
-          increment: 1,
+          // IP เดียวกันดูข่าวเดิมซ้ำภายใน 30 นาที ไม่นับเพิ่ม
+          increment: shouldCountNewsView(req.ip, id) ? 1 : 0,
         },
       },
       select: {

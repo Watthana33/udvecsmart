@@ -1,7 +1,11 @@
+import { getSubmissionLocks, SECTION_LABELS } from '../services/submissionLock.js';
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
+
+// จำนวนคน: จำนวนเต็มไม่ติดลบเสมอ
+const toCount = (value: unknown): number => Math.max(0, Math.floor(Number(value) || 0));
 
 /**
  * ดึงข้อมูลแผนกวิชาทวิภาคี (DVE Departments)
@@ -42,7 +46,7 @@ export async function getDveDepartments(req: Request, res: Response): Promise<vo
     });
   } catch (error: any) {
     console.error('getDveDepartments error:', error);
-    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลแผนกวิชาทวิภาคีได้', detail: error.message });
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลแผนกวิชาทวิภาคีได้' });
   }
 }
 
@@ -57,6 +61,18 @@ export async function saveDveDepartments(req: AuthRequest, res: Response): Promi
     const { academicYear, semester = 1, institutionId, departments } = req.body;
 
     const targetInstitutionId = userRole === Role.SUPER_ADMIN ? (institutionId || userInstitutionId) : userInstitutionId;
+
+    if (userRole !== Role.SUPER_ADMIN) {
+      const { open, locked } = await getSubmissionLocks();
+      if (!open) {
+        res.status(403).json({ status: 'error', message: 'ขณะนี้ระบบปิดรับการรายงานข้อมูล กรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี' });
+        return;
+      }
+      if (locked.has('dve')) {
+        res.status(403).json({ status: 'error', message: `หมวด${SECTION_LABELS.dve}ถูกปิดรับการแก้ไขโดย สอจ.อุดรธานี` });
+        return;
+      }
+    }
 
     if (!targetInstitutionId) {
       res.status(400).json({ status: 'error', message: 'ไม่พบรหัสสถานศึกษา' });
@@ -88,7 +104,7 @@ export async function saveDveDepartments(req: AuthRequest, res: Response): Promi
           academicYear: yearNum,
           semester: semNum,
           departmentName: String(d.departmentName).trim(),
-          studentCount: Number(d.studentCount) || 0,
+          studentCount: toCount(d.studentCount),
         }));
 
       if (validItems.length > 0) {
@@ -126,7 +142,7 @@ export async function saveDveDepartments(req: AuthRequest, res: Response): Promi
     });
   } catch (error: any) {
     console.error('saveDveDepartments error:', error);
-    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกข้อมูลแผนกวิชาทวิภาคีได้', detail: error.message });
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกข้อมูลแผนกวิชาทวิภาคีได้' });
   }
 }
 
@@ -173,7 +189,7 @@ export async function getCareerClassrooms(req: Request, res: Response): Promise<
     });
   } catch (error: any) {
     console.error('getCareerClassrooms error:', error);
-    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลหลักสูตรห้องเรียนอาชีพได้', detail: error.message });
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงข้อมูลหลักสูตรห้องเรียนอาชีพได้' });
   }
 }
 
@@ -188,6 +204,18 @@ export async function saveCareerClassrooms(req: AuthRequest, res: Response): Pro
     const { academicYear, semester = 1, institutionId, classrooms } = req.body;
 
     const targetInstitutionId = userRole === Role.SUPER_ADMIN ? (institutionId || userInstitutionId) : userInstitutionId;
+
+    if (userRole !== Role.SUPER_ADMIN) {
+      const { open, locked } = await getSubmissionLocks();
+      if (!open) {
+        res.status(403).json({ status: 'error', message: 'ขณะนี้ระบบปิดรับการรายงานข้อมูล กรุณาติดต่อผู้ดูแลระบบ สอจ.อุดรธานี' });
+        return;
+      }
+      if (locked.has('career')) {
+        res.status(403).json({ status: 'error', message: `หมวด${SECTION_LABELS.career}ถูกปิดรับการแก้ไขโดย สอจ.อุดรธานี` });
+        return;
+      }
+    }
 
     if (!targetInstitutionId) {
       res.status(400).json({ status: 'error', message: 'ไม่พบรหัสสถานศึกษา' });
@@ -221,7 +249,7 @@ export async function saveCareerClassrooms(req: AuthRequest, res: Response): Pro
           .filter((s: any) => s.schoolName && String(s.schoolName).trim() !== '')
           .map((s: any) => ({
             schoolName: String(s.schoolName).trim(),
-            studentCount: Math.max(0, Number(s.studentCount) || 0),
+            studentCount: toCount(s.studentCount),
           }));
 
         // คำนวณยอดอัตโนมัติ (Auto-calculation)
@@ -232,7 +260,7 @@ export async function saveCareerClassrooms(req: AuthRequest, res: Response): Pro
         // รองรับกรณีข้อมูลเดิมหรือกรณีไม่ได้ระบุอาร์เรย์โรงเรียน
         if (validSchools.length === 0 && (c.studentCount || c.partnerSchoolNames)) {
           partnerSchoolCount = Number(c.partnerSchoolCount) || (c.partnerSchoolNames ? c.partnerSchoolNames.split(',').length : 0);
-          studentCount = Number(c.studentCount) || 0;
+          studentCount = toCount(c.studentCount);
           partnerSchoolNames = c.partnerSchoolNames ? String(c.partnerSchoolNames).trim() : null;
         }
 
@@ -276,7 +304,7 @@ export async function saveCareerClassrooms(req: AuthRequest, res: Response): Pro
     });
   } catch (error: any) {
     console.error('saveCareerClassrooms error:', error);
-    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกข้อมูลหลักสูตรห้องเรียนอาชีพได้', detail: error.message });
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกข้อมูลหลักสูตรห้องเรียนอาชีพได้' });
   }
 }
 
@@ -330,6 +358,8 @@ export async function getDveAndCareerSummary(req: Request, res: Response): Promi
           civilTeachersFemale: true,
           hiredTeachersMale: true,
           hiredTeachersFemale: true,
+          govEmpTeachersMale: true,
+          govEmpTeachersFemale: true,
           degreeAssociateMale: true,
           degreeAssociateFemale: true,
           degreeBachelorMale: true,
@@ -416,6 +446,11 @@ export async function getDveAndCareerSummary(req: Request, res: Response): Promi
             female: schoolStats._sum.civilTeachersFemale || 0,
             total: (schoolStats._sum.civilTeachersMale || 0) + (schoolStats._sum.civilTeachersFemale || 0),
           },
+          govEmpTeachers: {
+            male: schoolStats._sum.govEmpTeachersMale || 0,
+            female: schoolStats._sum.govEmpTeachersFemale || 0,
+            total: (schoolStats._sum.govEmpTeachersMale || 0) + (schoolStats._sum.govEmpTeachersFemale || 0),
+          },
           hiredTeachers: {
             male: schoolStats._sum.hiredTeachersMale || 0,
             female: schoolStats._sum.hiredTeachersFemale || 0,
@@ -448,6 +483,6 @@ export async function getDveAndCareerSummary(req: Request, res: Response): Promi
     });
   } catch (error: any) {
     console.error('getDveAndCareerSummary error:', error);
-    res.status(500).json({ status: 'error', message: 'ไม่สามารถสรุปข้อมูลทวิภาคีและห้องเรียนอาชีพได้', detail: error.message });
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถสรุปข้อมูลทวิภาคีและห้องเรียนอาชีพได้' });
   }
 }

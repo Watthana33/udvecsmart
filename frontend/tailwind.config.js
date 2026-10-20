@@ -1,3 +1,58 @@
+import colors from 'tailwindcss/colors';
+import plugin from 'tailwindcss/plugin';
+
+/**
+ * สีฝั่ง UI ทุกสี (ยกเว้นเทา/ขาว/ดำ) ผูกกับตัวแปร CSS --c-<ชื่อ> ที่มีค่าเริ่มต้นเป็นสีเดิม
+ * ธีมขาวดำ (html.theme-mono) แค่ประกาศตัวแปรเหล่านี้เป็นสีเทา UI จึงเป็นขาวดำ
+ * ส่วนรูปภาพและกราฟ (canvas ของ chart.js) ไม่ใช้ตัวแปรเหล่านี้ จึงยังเป็นสีปกติ
+ */
+const monoVars = {};
+
+const hexToRgb = (hex) => {
+  const h = hex.replace('#', '');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+};
+
+const themed = (name, hex) => {
+  const [r, g, b] = hexToRgb(hex);
+  const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  monoVars[`--c-${name}`] = `${gray} ${gray} ${gray}`;
+  return `rgb(var(--c-${name}, ${r} ${g} ${b}) / <alpha-value>)`;
+};
+
+const FAMILIES = [
+  'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan',
+  'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+];
+
+const familyColors = {};
+for (const family of FAMILIES) {
+  familyColors[family] = {};
+  for (const [shade, hex] of Object.entries(colors[family])) {
+    familyColors[family][shade] = themed(`${family}-${shade}`, hex);
+  }
+}
+
+const vec = {
+  primary: '#932d16',
+  primaryDark: '#742210',
+  primaryLight: '#b2391e',
+  primaryBg: '#fdf6f4',
+  blue: '#1e3a8a',
+  navy: '#0f172a',
+  gold: '#f59e0b',
+};
+const vecColors = {};
+for (const [k, hex] of Object.entries(vec)) vecColors[k] = themed(`vec-${k}`, hex);
+
+// สีเฉพาะที่เคยเขียนเป็น bg-[#xxxxxx] ในโค้ด (ย้ายมาเป็นชื่อ hx-xxxxxx เพื่อให้สลับเป็นเทาได้)
+const HX = [
+  '932d16', '7a2411', '742210', 'fdf6f4', 'e11d48', '059669', 'f59e0b',
+  '0284c7', 'fbbf24', 'b2391e', '7d2511', '7c3aed', '782310', '451206',
+];
+const hxColors = {};
+for (const hex of HX) hxColors[hex] = themed(`hx-${hex}`, `#${hex}`);
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -7,20 +62,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        vec: {
-          primary: '#932d16',
-          primaryDark: '#742210',
-          primaryLight: '#b2391e',
-          primaryBg: '#fdf6f4',
-          blue: '#1e3a8a',
-          navy: '#0f172a',
-          gold: '#f59e0b',
-        }
+        ...familyColors,
+        vec: vecColors,
+        hx: hxColors,
       },
+      // Sarabun จาก Google Fonts ก่อน ถ้าโหลดไม่ได้ให้ใช้ฟอนต์ไทยที่มีในแต่ละระบบ (Windows: Leelawadee UI/Tahoma, macOS: Thonburi)
+      // mono ใช้ฟอนต์ชุดเดียวกัน (ไม่ใช้ Menlo/Consolas ที่หน้าตาต่างกันระหว่าง Mac กับ Windows) — ตัวเลขเรียงตรงด้วย tabular-nums ใน index.css
       fontFamily: {
-        sans: ['Sarabun', 'sans-serif'],
+        sans: ['Sarabun', 'Noto Sans Thai', 'Leelawadee UI', 'Tahoma', 'Thonburi', 'sans-serif'],
+        mono: ['Sarabun', 'Noto Sans Thai', 'Leelawadee UI', 'Tahoma', 'Thonburi', 'sans-serif'],
       }
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ addBase }) => {
+      addBase({ 'html.theme-mono': monoVars });
+    }),
+  ],
 }

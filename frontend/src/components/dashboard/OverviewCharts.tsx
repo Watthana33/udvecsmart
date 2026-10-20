@@ -32,7 +32,7 @@ const customDataLabelsPlugin = {
         const val = dataset.data[index];
         if (val !== undefined && val !== null && val > 0) {
           const formatted = Number(val).toLocaleString();
-          ctx.fillStyle = datasetIndex === 0 ? '#932d16' : '#ad7f09';
+          ctx.fillStyle = dataset.backgroundColor === '#fbbf24' ? '#ad7f09' : datasetIndex === 0 ? '#932d16' : '#ad7f09';
           ctx.fillText(formatted, element.x, element.y - 4);
         }
       });
@@ -63,7 +63,6 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
   institutionStats,
   loading,
 }) => {
-  const [showGradeDataLabels, setShowGradeDataLabels] = React.useState<boolean>(false);
 
   if (loading || !stats) {
     return (
@@ -86,6 +85,11 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
     ? institutionStats.find((i) => i.institution.id === stats.selectedInstitutionId)?.institution.name || 'สถานศึกษาที่เลือก'
     : null;
 
+  const selectedInstType = isFiltered
+    ? institutionStats.find((i) => i.institution.id === stats.selectedInstitutionId)?.institution.type
+    : undefined;
+  const selectedIsPrivate = selectedInstType === 'PRIVATE';
+
   const gradeChartData = isFiltered
     ? {
         labels: gradeLabels,
@@ -100,7 +104,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               stats.students.byGrade.highVocCert2,
               stats.students.byGrade.bachelor,
             ],
-            backgroundColor: '#932d16',
+            backgroundColor: selectedIsPrivate ? '#fbbf24' : '#932d16',
             borderRadius: 6,
           },
         ],
@@ -185,7 +189,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16]">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-932d16">
               <BarChart3 className="w-4 h-4" />
               <span>Grade Level Distribution</span>
             </div> */}
@@ -193,31 +197,24 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               จำนวนนักเรียน นักศึกษา แยกตามระดับชั้นปี (ปวช. - ปวส. - ปริญญาตรี(ทล.บ.) ) {isFiltered && `ของ ${selectedInstName}`} 
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีแดงเลือดหมู) และสถานศึกษาภาคเอกชน (สีเหลือง) ตามหลัก Square Color Harmony
+              {isFiltered
+                ? `จำนวนนักเรียน นักศึกษาของ${selectedInstName} แยกตามระดับชั้นปี`
+                : 'เปรียบเทียบสัดส่วนระหว่างสถานศึกษาภาครัฐ (สีแดงเลือดหมู) และสถานศึกษาภาคเอกชน (สีเหลือง) ตามหลัก Square Color Harmony'}
             </p>
           </div>
           <div className="flex items-center gap-3 sm:gap-4 text-xs font-semibold flex-wrap">
-            {/* Interactive Checkbox toggle to show/hide numbers directly on bars */}
-            <label className="flex items-center gap-2 cursor-pointer bg-slate-100 hover:bg-slate-200/80 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 transition-colors select-none border border-slate-200 shadow-2xs">
-              <input
-                type="checkbox"
-                checked={showGradeDataLabels}
-                onChange={(e) => setShowGradeDataLabels(e.target.checked)}
-                className="rounded text-[#932d16] focus:ring-[#932d16] w-4 h-4 cursor-pointer accent-[#932d16]"
-              />
-              <span>แสดงตัวเลขบนแท่งกราฟ</span>
-            </label>
-
+            {!isFiltered && (
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#932d16]" />
+                <span className="w-3 h-3 rounded-full bg-hx-932d16" />
                 <span>รัฐบาล ({stats.institutions.public} แห่ง)</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-[#fbbf24]" />
+                <span className="w-3 h-3 rounded-full bg-hx-fbbf24" />
                 <span>เอกชน ({stats.institutions.private} แห่ง)</span>
               </span>
             </div>
+            )}
           </div>
         </div>
 
@@ -227,11 +224,12 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
             options={({
               responsive: true,
               maintainAspectRatio: false,
+              layout: { padding: { top: 8 } },
               plugins: {
                 customDataLabels: {
-                  showLabels: showGradeDataLabels,
+                  showLabels: true,
                 },
-                legend: { position: 'top', labels: { font: { family: 'Sarabun', size: 12 } } },
+                legend: { position: 'top', labels: { padding: 20, font: { family: 'Sarabun', size: 12 } } },
                 tooltip: {
                   bodyFont: { family: 'Sarabun' },
                   callbacks: {
@@ -244,6 +242,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
                 y: {
                   beginAtZero: true,
                   suggestedMax: 5,
+                  grace: '12%',
                   ticks: {
                     precision: 0,
                     stepSize: 1,
@@ -268,7 +267,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 2: Horizontal Bar (ชาย-หญิง รายวิทยาลัย) */}
         <div className="lg:col-span-8 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#059669] mb-1">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-059669 mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Gender Comparison by College</span>
             </div> */}
@@ -327,7 +326,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
         {/* Chart 3: Donut (สัดส่วน ชาย - หญิง ทั้งจังหวัด) */}
         <div className="lg:col-span-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
           <div>
-            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#e11d48] mb-1">
+            {/* <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-e11d48 mb-1">
               <PieChart className="w-4 h-4" />
               <span>Gender Ratio (Overall)</span>
             </div> */}
@@ -364,17 +363,17 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
           <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
             <div className="p-2.5 rounded-xl bg-emerald-50/80 text-emerald-950 font-semibold border border-emerald-200">
               <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-900">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#059669]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-hx-059669" />
                 <span>ชาย: {totalMale.toLocaleString()} คน</span>
               </div>
-              <div className="text-[12px] text-[#059669] font-black mt-0.5">{malePercent}%</div>
+              <div className="text-[12px] text-hx-059669 font-black mt-0.5">{malePercent}%</div>
             </div>
             <div className="p-2.5 rounded-xl bg-rose-50/80 text-rose-950 font-semibold border border-rose-200">
               <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-rose-900">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#e11d48]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-hx-e11d48" />
                 <span>หญิง: {totalFemale.toLocaleString()} คน</span>
               </div>
-              <div className="text-[12px] text-[#e11d48] font-black mt-0.5">{femalePercent}%</div>
+              <div className="text-[12px] text-hx-e11d48 font-black mt-0.5">{femalePercent}%</div>
             </div>
           </div>
         </div>

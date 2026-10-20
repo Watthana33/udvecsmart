@@ -17,6 +17,24 @@ export async function submitContactMessage(req: Request, res: Response): Promise
       return;
     }
 
+    const limits: Array<[unknown, number, string]> = [
+      [name, 120, 'ชื่อ-นามสกุล'],
+      [email, 200, 'อีเมล'],
+      [subject, 200, 'เรื่องที่ติดต่อ'],
+      [message, 5000, 'ข้อความ'],
+      [phone ?? '', 40, 'เบอร์โทรศัพท์'],
+    ];
+    for (const [v, max, label] of limits) {
+      if (typeof v !== 'string' || v.length > max) {
+        res.status(400).json({ status: 'error', message: `${label}ต้องเป็นข้อความยาวไม่เกิน ${max} ตัวอักษร` });
+        return;
+      }
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ status: 'error', message: 'รูปแบบอีเมลไม่ถูกต้อง' });
+      return;
+    }
+
     const newMessage = await prisma.contactMessage.create({
       data: {
         name,
@@ -37,7 +55,6 @@ export async function submitContactMessage(req: Request, res: Response): Promise
     res.status(500).json({
       status: 'error',
       message: 'เกิดข้อผิดพลาดในการส่งข้อความ กรุณาลองใหม่อีกครั้ง',
-      detail: error.message,
     });
   }
 }

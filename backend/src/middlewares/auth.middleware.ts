@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JwtPayload } from '../utils/jwt.js';
 import { Role } from '@prisma/client';
+import { prisma } from '../config/prisma.js';
 
 // ขยาย Request ของ Express ให้มีฟิลด์ user เพื่อส่งต่อให้ controller ใช้งานได้
 export interface AuthRequest extends Request {
@@ -33,18 +34,32 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
 
   const token = parts[1];
 
+  let decoded: JwtPayload;
   try {
-    const decoded = verifyToken(token);
-    // แนบข้อมูลผู้ใช้เข้ากับ req เพื่อให้ Controller ใช้งานต่อได้
-    req.user = decoded;
-    next();
-  } catch (error: any) {
+    decoded = verifyToken(token);
+  } catch {
     res.status(401).json({
       status: 'error',
-      message: 'บัตรผ่านหมดอายุหรือไม่ถูกต้อง (Invalid or expired token)',
-      detail: error.message,
+      message: 'บัตรผ่านหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่',
     });
+    return;
   }
+
+  // ตรวจกับฐานข้อมูลทุกครั้ง: บัญชีที่ถูกลบ/เปลี่ยนสิทธิ์/ย้ายสถานศึกษา จะใช้บัตรผ่านเดิมต่อไม่ได้ (ใช้สิทธิ์ล่าสุดจากฐานข้อมูล)
+  prisma.user
+    .findUnique({ where: { id: decoded.userId }, select: { id: true, email: true, role: true, institutionId: true } })
+    .then((account) => {
+      if (!account) {
+        res.status(401).json({ status: 'error', message: 'บัญชีนี้ไม่มีอยู่ในระบบแล้ว กรุณาเข้าสู่ระบบใหม่' });
+        return;
+      }
+      req.user = { ...decoded, email: account.email, role: account.role, institutionId: account.institutionId };
+      next();
+    })
+    .catch((err) => {
+      console.error('authenticateJWT lookup error:', err);
+      res.status(500).json({ status: 'error', message: 'ไม่สามารถตรวจสอบบัญชีผู้ใช้ได้' });
+    });
 }
 
 /**

@@ -42,7 +42,7 @@ export const NewsSection: React.FC<NewsSectionProps> = ({ newsList, loading }) =
   return (
     <section className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       
-      <div className="relative bg-[#742210] rounded-3xl p-6 sm:p-8 text-white shadow-xl overflow-hidden min-h-[220px] flex flex-col justify-between">
+      <div className="relative bg-hx-742210 rounded-3xl p-6 sm:p-8 text-white shadow-xl overflow-hidden min-h-[220px] flex flex-col justify-between">
         
         {/* Dynamic Background: Photo with Dark Gradient Overlay if available, else standard gradient */}
         {currentNews.coverImageUrl ? (
@@ -51,11 +51,11 @@ export const NewsSection: React.FC<NewsSectionProps> = ({ newsList, loading }) =
               className="absolute inset-0 bg-cover bg-center transition-all duration-700 transform scale-105"
               style={{ backgroundImage: `url(${currentNews.coverImageUrl})` }}
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-[#742210]/60 backdrop-blur-[2px]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-hx-742210/60 backdrop-blur-[2px]" />
           </>
         ) : (
           <>
-            <div className="absolute inset-0 bg-gradient-to-r from-[#932d16] via-[#742210] to-[#932d16]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-hx-932d16 via-hx-742210 to-hx-932d16" />
             <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
           </>

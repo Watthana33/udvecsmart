@@ -317,18 +317,19 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
   const personnelEmploymentChartData = useMemo(() => {
     if (!personnelDemographics) return null;
     const { civilTeachers, hiredTeachers } = personnelDemographics;
+    const govEmpTeachers = personnelDemographics.govEmpTeachers ?? { male: 0, female: 0, total: 0 };
     return {
-      labels: ['ข้าราชการครู', 'ครูอัตราจ้าง / ชั่วคราว'],
+      labels: ['ข้าราชการครู', 'พนักงานราชการ (ครู)', 'ครูอัตราจ้าง / ชั่วคราว'],
       datasets: [
         {
           label: 'ชาย (คน)',
-          data: [civilTeachers.male, hiredTeachers.male],
+          data: [civilTeachers.male, govEmpTeachers.male, hiredTeachers.male],
           backgroundColor: '#0284c7',
           borderRadius: 6,
         },
         {
           label: 'หญิง (คน)',
-          data: [civilTeachers.female, hiredTeachers.female],
+          data: [civilTeachers.female, govEmpTeachers.female, hiredTeachers.female],
           backgroundColor: '#db2777',
           borderRadius: 6,
         },
@@ -444,11 +445,11 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
               onClick={() => setActiveSubTab('dve')}
               className={`flex-1 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeSubTab === 'dve'
-                  ? 'bg-white text-[#932d16] shadow-sm ring-2 ring-[#932d16]/15 scale-[1.01]'
+                  ? 'bg-white text-hx-932d16 shadow-sm ring-2 ring-hx-932d16/15 scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-950 hover:bg-white/60'
               }`}
             >
-              <Briefcase className={`w-4 h-4 ${activeSubTab === 'dve' ? 'text-[#932d16]' : 'text-slate-400'}`} />
+              <Briefcase className={`w-4 h-4 ${activeSubTab === 'dve' ? 'text-hx-932d16' : 'text-slate-400'}`} />
               <span>1. ระบบทวิภาคี</span>
             </button>
 
@@ -457,11 +458,11 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
               onClick={() => setActiveSubTab('career')}
               className={`flex-1 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeSubTab === 'career'
-                  ? 'bg-white text-[#932d16] shadow-sm ring-2 ring-[#932d16]/15 scale-[1.01]'
+                  ? 'bg-white text-hx-932d16 shadow-sm ring-2 ring-hx-932d16/15 scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-950 hover:bg-white/60'
               }`}
             >
-              <Award className={`w-4 h-4 ${activeSubTab === 'career' ? 'text-[#932d16]' : 'text-slate-400'}`} />
+              <Award className={`w-4 h-4 ${activeSubTab === 'career' ? 'text-hx-932d16' : 'text-slate-400'}`} />
               <span>2. หลักสูตรห้องเรียนอาชีพ</span>
             </button>
 
@@ -470,11 +471,11 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
               onClick={() => setActiveSubTab('personnel')}
               className={`flex-1 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeSubTab === 'personnel'
-                  ? 'bg-white text-[#932d16] shadow-sm ring-2 ring-[#932d16]/15 scale-[1.01]'
+                  ? 'bg-white text-hx-932d16 shadow-sm ring-2 ring-hx-932d16/15 scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-950 hover:bg-white/60'
               }`}
             >
-              <Users className={`w-4 h-4 ${activeSubTab === 'personnel' ? 'text-[#932d16]' : 'text-slate-400'}`} />
+              <Users className={`w-4 h-4 ${activeSubTab === 'personnel' ? 'text-hx-932d16' : 'text-slate-400'}`} />
               <span>3. บุคลากร & วุฒิการศึกษา</span>
             </button>
           </div>
@@ -488,7 +489,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
               <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200/90 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16]">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-932d16">
                       <BarChart3 className="w-4 h-4" />
                       <span>DVE Departments Overview</span>
                     </div>
@@ -520,7 +521,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
-                      <Building2 className="w-5 h-5 text-[#932d16]" />
+                      <Building2 className="w-5 h-5 text-hx-932d16" />
                       <span>สรุปข้อมูลการจัดการศึกษาระบบทวิภาคี จำแนกรายสถานศึกษา</span>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -536,7 +537,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                       value={dveSearch}
                       onChange={(e) => setDveSearch(e.target.value)}
                       placeholder="ค้นหาวิทยาลัย หรือสาขาวิชา..."
-                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16]"
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16"
                     />
                     {dveSearch && (
                       <button
@@ -559,7 +560,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                         <th className="py-3 px-4 min-w-[200px]">สถานศึกษา</th>
                         <th className="py-3 px-4 min-w-[320px]">สาขาวิชาที่เปิดสอนทวิภาคี</th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">จำนวนแผนก</th>
-                        <th className="py-3 px-4 text-right whitespace-nowrap text-[#932d16]">นักเรียนทวิภาคีรวม</th>
+                        <th className="py-3 px-4 text-right whitespace-nowrap text-hx-932d16">นักเรียนทวิภาคีรวม</th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">รายละเอียด</th>
                       </tr>
                     </thead>
@@ -579,7 +580,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                           >
                             <td className="py-3 px-3.5 text-center text-slate-400 font-mono">{idx + 1}</td>
                             <td className="py-3 px-4 font-black text-slate-900 flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-[#932d16] shrink-0" />
+                              <Building2 className="w-4 h-4 text-hx-932d16 shrink-0" />
                               <span>{item.institutionName}</span>
                             </td>
                             <td className="py-3 px-4">
@@ -606,7 +607,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                               </span>
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <strong className="text-sm font-black text-[#932d16]">
+                              <strong className="text-sm font-black text-hx-932d16">
                                 {item.studentCount.toLocaleString()}{' '}
                                 <span className="text-[11px] font-normal text-slate-500">คน</span>
                               </strong>
@@ -618,7 +619,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                                   e.stopPropagation();
                                   setSelectedDveDetail(item);
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-[#932d16] hover:text-white hover:border-[#932d16] text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                                className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-hx-932d16 hover:text-white hover:border-hx-932d16 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
                               >
                                 ดูเจาะลึก
                               </button>
@@ -640,7 +641,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                             ข้อมูลเจาะลึกระบบทวิภาคี
                           </span>
                           <h4 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2 mt-0.5">
-                            <Building2 className="w-5 h-5 text-[#932d16]" />
+                            <Building2 className="w-5 h-5 text-hx-932d16" />
                             <span>{selectedDveDetail.institutionName}</span>
                           </h4>
                         </div>
@@ -679,10 +680,10 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                               className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
                             >
                               <div className="flex items-center gap-2 font-bold text-slate-800">
-                                <span className="w-2 h-2 rounded-full bg-[#932d16]" />
+                                <span className="w-2 h-2 rounded-full bg-hx-932d16" />
                                 <span>{deptStr.split('(')[0]?.trim()}</span>
                               </div>
-                              <span className="font-mono font-bold text-[#932d16] bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                              <span className="font-mono font-bold text-hx-932d16 bg-white px-2 py-0.5 rounded-md border border-slate-200">
                                 {deptStr.split('(')[1]?.replace(')', '') || ''}
                               </span>
                             </div>
@@ -829,7 +830,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
-                      <Award className="w-5 h-5 text-[#932d16]" />
+                      <Award className="w-5 h-5 text-hx-932d16" />
                       <span>ตารางรายชื่อหลักสูตรห้องเรียนอาชีพและการอบรม</span>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -848,7 +849,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                         }}
                         className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                           careerTrainingFilter === 'ALL'
-                            ? 'bg-white text-[#932d16] shadow-xs'
+                            ? 'bg-white text-hx-932d16 shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -891,7 +892,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                         setCareerFormatFilter(e.target.value as any);
                         setCareerPage(1);
                       }}
-                      className="py-1.5 px-3 text-xs rounded-xl border border-slate-200 bg-white font-bold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16] cursor-pointer"
+                      className="py-1.5 px-3 text-xs rounded-xl border border-slate-200 bg-white font-bold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16 cursor-pointer"
                     >
                       <option value="ALL">ทุกรูปแบบการเรียน</option>
                       <option value="ONSITE">ในสถานศึกษา (Onsite)</option>
@@ -911,7 +912,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                           setCareerPage(1);
                         }}
                         placeholder="ค้นหาหลักสูตร หรือวิทยาลัย..."
-                        className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#932d16]/20 focus:border-[#932d16]"
+                        className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-hx-932d16/20 focus:border-hx-932d16"
                       />
                       {careerSearch && (
                         <button
@@ -939,7 +940,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                         <th className="py-3 px-4 min-w-[180px]">สถานศึกษาที่จัด</th>
                         <th className="py-3 px-3 text-center whitespace-nowrap">ประเภท / รูปแบบ</th>
                         <th className="py-3 px-4 min-w-[200px]">รร.เครือข่ายที่เข้าร่วม</th>
-                        <th className="py-3 px-4 text-right whitespace-nowrap text-[#932d16]">จำนวนผู้เรียน (คน)</th>
+                        <th className="py-3 px-4 text-right whitespace-nowrap text-hx-932d16">จำนวนผู้เรียน (คน)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
@@ -962,7 +963,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                               </td>
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                  <Building2 className="w-3.5 h-3.5 text-[#932d16] shrink-0" />
+                                  <Building2 className="w-3.5 h-3.5 text-hx-932d16 shrink-0" />
                                   <span>{item.institution?.name}</span>
                                 </div>
                               </td>
@@ -1002,7 +1003,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                                           title={`${ps.schoolName}: ${ps.studentCount.toLocaleString()} คน`}
                                         >
                                           <span className="font-semibold">{ps.schoolName}</span>
-                                          <span className="font-black text-[#932d16]">({ps.studentCount} คน)</span>
+                                          <span className="font-black text-hx-932d16">({ps.studentCount} คน)</span>
                                         </span>
                                       ))}
                                     </div>
@@ -1014,7 +1015,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-right">
-                                <strong className="text-sm font-black text-[#932d16]">
+                                <strong className="text-sm font-black text-hx-932d16">
                                   {item.studentCount.toLocaleString()}{' '}
                                   <span className="text-[11px] font-normal text-slate-500">คน</span>
                                 </strong>
@@ -1060,7 +1061,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                                 onClick={() => setCareerPage(page)}
                                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                   careerPage === page
-                                    ? 'bg-[#932d16] text-white shadow-xs'
+                                    ? 'bg-hx-932d16 text-white shadow-xs'
                                     : 'border border-slate-200 text-slate-700 hover:bg-slate-100'
                                 }`}
                               >
@@ -1093,7 +1094,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-[#932d16]" />
+                  <Users className="w-5 h-5 text-hx-932d16" />
                   <span>ข้อมูลบุคลากรทางการศึกษา จำแนกเพศ วิทยฐานะ และประเภทการจ้าง</span>
                 </h3>
                 <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl self-start sm:self-auto">
@@ -1106,7 +1107,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                 {/* Chart 1: Donut for Education Levels */}
                 <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16] mb-1">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-932d16 mb-1">
                       <GraduationCap className="w-4 h-4" />
                       <span>Education Distribution</span>
                     </div>
@@ -1203,7 +1204,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                 {/* Box 1: จำแนกตามวุฒิการศึกษา ชาย-หญิง */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
                   <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-[#932d16]" />
+                    <GraduationCap className="w-4 h-4 text-hx-932d16" />
                     <span>ตารางรายละเอียดระดับวุฒิการศึกษา (ชาย / หญิง)</span>
                   </h4>
 
@@ -1214,7 +1215,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                           <th className="py-2.5 px-3">ระดับการศึกษา</th>
                           <th className="py-2.5 px-3 text-center text-blue-700">ชาย</th>
                           <th className="py-2.5 px-3 text-center text-rose-700">หญิง</th>
-                          <th className="py-2.5 px-3 text-right text-[#932d16]">รวม (คน)</th>
+                          <th className="py-2.5 px-3 text-right text-hx-932d16">รวม (คน)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-semibold">
@@ -1274,7 +1275,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                 {/* Box 2: จำแนกตามประเภทการจ้างงาน */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
                   <h4 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-[#932d16]" />
+                    <Briefcase className="w-4 h-4 text-hx-932d16" />
                     <span>สรุปประเภทตำแหน่งและสัญญาจ้าง</span>
                   </h4>
 
@@ -1287,8 +1288,21 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                           {personnelDemographics.civilTeachers.female} คน
                         </span>
                       </div>
-                      <strong className="text-base font-black text-[#932d16]">
+                      <strong className="text-base font-black text-hx-932d16">
                         {personnelDemographics.civilTeachers.total.toLocaleString()} คน
+                      </strong>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 block">พนักงานราชการ (ครู)</span>
+                        <span className="text-[11px] text-slate-500">
+                          ชาย {personnelDemographics.govEmpTeachers?.male ?? 0} คน | หญิง{' '}
+                          {personnelDemographics.govEmpTeachers?.female ?? 0} คน
+                        </span>
+                      </div>
+                      <strong className="text-base font-black text-hx-932d16">
+                        {(personnelDemographics.govEmpTeachers?.total ?? 0).toLocaleString()} คน
                       </strong>
                     </div>
 
@@ -1300,7 +1314,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
                           {personnelDemographics.hiredTeachers.female} คน
                         </span>
                       </div>
-                      <strong className="text-base font-black text-[#932d16]">
+                      <strong className="text-base font-black text-hx-932d16">
                         {personnelDemographics.hiredTeachers.total.toLocaleString()} คน
                       </strong>
                     </div>

@@ -1,6 +1,10 @@
+import bcrypt from 'bcryptjs';
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { comparePassword } from '../utils/password.js';
+
+// hash หลอก (bcrypt cost 10 เท่ากับของจริง) ใช้เทียบเมื่อไม่พบอีเมล ให้เวลาตอบเท่ากับกรณีรหัสผิด — เดาไม่ได้ว่าอีเมลไหนมีบัญชี
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 import { signToken } from '../utils/jwt.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 
@@ -12,8 +16,8 @@ export async function login(req: Request, res: Response): Promise<void> {
   try {
     const { email, password } = req.body;
 
-    // 1. ตรวจสอบว่าส่ง email และ password มาครบหรือไม่
-    if (!email || !password) {
+    // 1. ตรวจสอบว่าส่ง email และ password มาครบหรือไม่ (และเป็นข้อความ ไม่ใช่ object/ตัวเลข)
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string' || email.length > 200 || password.length > 200) {
       res.status(400).json({
         status: 'error',
         message: 'กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วน',
@@ -38,6 +42,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     });
 
     if (!user) {
+      await comparePassword(String(password), DUMMY_HASH);
       res.status(401).json({
         status: 'error',
         message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
@@ -81,7 +86,6 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       status: 'error',
       message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      detail: error.message,
     });
   }
 }
@@ -139,7 +143,6 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
     res.status(500).json({
       status: 'error',
       message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      detail: error.message,
     });
   }
 }

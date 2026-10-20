@@ -1,6 +1,15 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 
+// คีย์ที่ต้องแปลงเป็นตัวเลข (ที่เหลือคงเป็นข้อความ — กันเบอร์โทร/หัวข้อที่เป็นตัวเลขล้วนถูกแปลงจนเลข 0 นำหน้าหาย)
+const NUMERIC_SETTING_KEYS = new Set(['current_academic_year', 'current_semester', 'welcome_version']);
+
+// คีย์ที่เก็บรูป (data URL ขนาดใหญ่) — ไม่ส่งในการตั้งค่าสาธารณะ ให้โหลดผ่าน endpoint รูปแยก (cache ได้)
+const IMAGE_SETTING_KEYS = new Set(['welcome_image', 'banner_image']);
+
+// คีย์ที่ไม่ใช่การตั้งค่าที่หน้าเว็บต้องใช้ผ่านเส้นทางนี้
+const HIDDEN_SETTING_KEYS = new Set(['visitor_count']);
+
 /**
  * ดึงการตั้งค่าระบบสำหรับหน้าสาธารณะ
  * GET /api/settings/public
@@ -11,19 +20,28 @@ export async function getPublicSettings(_req: Request, res: Response): Promise<v
       select: {
         key: true,
         value: true,
-        description: true,
+        updatedAt: true,
       },
     });
 
     // แปลงอาร์เรย์ให้อยู่ในรูป Object { key: value } เพื่อง่ายต่อการเรียกใช้ใน React
     const settingsMap: Record<string, any> = {};
     for (const item of settings) {
-      // แปลงค่า 'true'/'false' เป็น boolean และตัวเลขเป็น number
+      if (HIDDEN_SETTING_KEYS.has(item.key)) continue;
+
+      if (IMAGE_SETTING_KEYS.has(item.key)) {
+        // ส่งแค่ว่ามีรูปไหม + เวอร์ชัน (ใช้ต่อท้าย URL รูปเพื่อให้ cache ใหม่เมื่อเปลี่ยนรูป)
+        const name = item.key.replace('_image', '');
+        settingsMap[`${name}_has_image`] = item.value !== '';
+        settingsMap[`${name}_image_version`] = item.updatedAt.getTime();
+        continue;
+      }
+
       if (item.value === 'true') {
         settingsMap[item.key] = true;
       } else if (item.value === 'false') {
         settingsMap[item.key] = false;
-      } else if (!isNaN(Number(item.value)) && item.value.trim() !== '') {
+      } else if (NUMERIC_SETTING_KEYS.has(item.key) && item.value.trim() !== '' && !isNaN(Number(item.value))) {
         settingsMap[item.key] = Number(item.value);
       } else {
         settingsMap[item.key] = item.value;
@@ -39,8 +57,141 @@ export async function getPublicSettings(_req: Request, res: Response): Promise<v
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงการตั้งค่าระบบได้',
-      detail: error.message,
     });
+  }
+}
+
+// ---------- รูปที่เก็บใน site_settings (หน้าข่าวสาร / แบนเนอร์) ----------
+const MAX_IMAGE_LENGTH = 7_000_000; // ~5MB หลังเข้ารหัส base64
+const DATA_IMAGE_RE = /^data:(image\/(?:jpeg|png|webp|gif|avif));base64,([A-Za-z0-9+/=]+)$/;
+
+/** ตรวจค่ารูป: '' (ไม่มีรูป), data URL ของชนิดที่อนุญาต (ไม่รับ SVG), ลิงก์ http(s) หรือ path ในเว็บ */
+export function validateImageValue(v: unknown): string | null {
+  if (typeof v !== 'string') return 'รูปภาพต้องเป็นข้อความ';
+  if (v === '') return null;
+  if (v.length > MAX_IMAGE_LENGTH) return 'รูปภาพใหญ่เกินไป (ไม่เกินประมาณ 5MB)';
+  if (v.startsWith('data:')) {
+    return DATA_IMAGE_RE.test(v) ? null : 'รองรับเฉพาะไฟล์ JPEG, PNG, WebP, GIF และ AVIF';
+  }
+  // CSP ของหน้าเว็บ (img-src) รับเฉพาะ https — ลิงก์ http:// จะถูกเบราว์เซอร์บล็อกจนรูปแตก
+  if (/^https:\/\/[^\s]{1,2000}$/i.test(v)) return null;
+  if (/^\/(?!\/)[^\s]{0,500}$/.test(v)) return null;
+  if (/^http:\/\//i.test(v)) return 'ลิงก์รูปภาพต้องขึ้นต้นด้วย https:// (เบราว์เซอร์จะบล็อกรูปจาก http://)';
+  return 'รูปภาพต้องเป็นไฟล์ภาพหรือลิงก์ที่ขึ้นต้นด้วย https://';
+}
+
+function serveSettingImage(key: string) {
+  return async (req: Request, res: Response): Promise<void> => {
+    try {
+      const row = await prisma.siteSetting.findUnique({ where: { key } });
+      if (!row || row.value === '') {
+        res.status(404).json({ status: 'error', message: 'ไม่มีรูปภาพ' });
+        return;
+      }
+
+      // ลิงก์ภายนอก/path ในเว็บ → ส่งต่อ
+      if (!row.value.startsWith('data:')) {
+        res.redirect(302, row.value);
+        return;
+      }
+
+      const m = DATA_IMAGE_RE.exec(row.value);
+      if (!m) {
+        res.status(404).json({ status: 'error', message: 'รูปภาพไม่ถูกต้อง' });
+        return;
+      }
+
+      const etag = `W/"${row.updatedAt.getTime()}"`;
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+      res.type(m[1]).send(Buffer.from(m[2], 'base64'));
+    } catch (error: any) {
+      console.error(`serveSettingImage(${key}) error:`, error);
+      res.status(500).json({ status: 'error', message: 'ไม่สามารถดึงรูปภาพได้' });
+    }
+  };
+}
+
+/** GET /api/settings/welcome-image */
+export const getWelcomeImage = serveSettingImage('welcome_image');
+/** GET /api/settings/banner-image */
+export const getBannerImage = serveSettingImage('banner_image');
+
+/**
+ * ตั้งรูปแบนเนอร์หัวเว็บ (เฉพาะ SUPER_ADMIN) — เก็บที่เซิร์ฟเวอร์ ทุกคนเห็นตรงกัน; ส่ง '' = กลับไปใช้แบนเนอร์เริ่มต้น
+ * PUT /api/settings/banner  Body: { image: string }
+ */
+export async function updateBanner(req: Request, res: Response): Promise<void> {
+  try {
+    const { image } = req.body;
+    const err = validateImageValue(image);
+    if (err) {
+      res.status(400).json({ status: 'error', message: err });
+      return;
+    }
+    await prisma.siteSetting.upsert({
+      where: { key: 'banner_image' },
+      update: { value: image },
+      create: { key: 'banner_image', value: image, description: 'รูปแบนเนอร์หัวเว็บ (ว่าง = ใช้รูปเริ่มต้น)' },
+    });
+    res.json({ status: 'success', message: image === '' ? 'กลับไปใช้แบนเนอร์เริ่มต้นแล้ว' : 'เปลี่ยนแบนเนอร์เรียบร้อยแล้ว' });
+  } catch (error: any) {
+    console.error('updateBanner error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกแบนเนอร์ได้' });
+  }
+}
+
+/**
+ * ตั้งข้อมูลติดต่อ สอจ. ที่แสดงใน Footer และหน้าติดต่อเรา (เฉพาะ SUPER_ADMIN)
+ * PUT /api/settings/contact-info
+ */
+const CONTACT_FIELDS: Array<[string, string, number, string]> = [
+  ['contactAddress', 'contact_address', 400, 'ที่อยู่สำนักงาน'],
+  ['contactPhone', 'contact_phone', 60, 'เบอร์โทรศัพท์'],
+  ['contactEmail', 'contact_email', 120, 'อีเมลทางการ'],
+  ['contactHours', 'contact_hours', 120, 'เวลาทำการ'],
+  ['contactFacebook', 'contact_facebook', 300, 'ลิงก์เฟซบุ๊กแฟนเพจ'],
+];
+
+export async function updateContactInfo(req: Request, res: Response): Promise<void> {
+  try {
+    const entries: Array<[string, string, string]> = [];
+    for (const [field, key, max, label] of CONTACT_FIELDS) {
+      const v = req.body[field];
+      if (v === undefined) continue;
+      if (typeof v !== 'string' || v.length > max) {
+        res.status(400).json({ status: 'error', message: `${label} ต้องเป็นข้อความยาวไม่เกิน ${max} ตัวอักษร` });
+        return;
+      }
+      const value = v.trim();
+      if (key === 'contact_facebook' && value !== '' && !/^https?:\/\/\S+$/.test(value)) {
+        res.status(400).json({ status: 'error', message: 'ลิงก์เฟซบุ๊กต้องขึ้นต้นด้วย http:// หรือ https://' });
+        return;
+      }
+      if (key === 'contact_email' && value !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        res.status(400).json({ status: 'error', message: 'รูปแบบอีเมลไม่ถูกต้อง' });
+        return;
+      }
+      entries.push([key, value, `ข้อมูลติดต่อ: ${label}`]);
+    }
+    if (entries.length === 0) {
+      res.status(400).json({ status: 'error', message: 'ไม่มีค่าที่ต้องบันทึก' });
+      return;
+    }
+    await Promise.all(
+      entries.map(([key, value, description]) =>
+        prisma.siteSetting.upsert({ where: { key }, update: { value }, create: { key, value, description } })
+      )
+    );
+    res.json({ status: 'success', message: 'บันทึกข้อมูลติดต่อเรียบร้อยแล้ว' });
+  } catch (error: any) {
+    console.error('updateContactInfo error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกข้อมูลติดต่อได้' });
   }
 }
 
@@ -82,7 +233,6 @@ export async function updateSubmissionToggle(req: Request, res: Response): Promi
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถอัปเดตสถานะระบบได้',
-      detail: error.message,
     });
   }
 }
@@ -207,7 +357,6 @@ export async function updateSubmissionPermissions(req: Request, res: Response): 
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถบันทึกการตั้งค่าสิทธิ์ได้',
-      detail: error.message,
     });
   }
 }
@@ -401,6 +550,117 @@ export async function setCurrentAcademicPeriod(req: Request, res: Response): Pro
 }
 
 /**
+ * ตั้งค่ารูปลักษณ์เว็บไซต์: ธีมไว้อาลัย และหน้าข่าวสารก่อนเข้าเว็บ (เฉพาะ SUPER_ADMIN)
+ * PUT /api/settings/appearance
+ * ส่งมาเฉพาะ field ที่ต้องการแก้ได้ (field ที่ไม่ส่งจะไม่ถูกแตะ)
+ */
+const SITE_THEMES = ['normal', 'mono', 'gray'];
+const WELCOME_MODES = ['fullpage', 'modal'];
+
+export async function updateAppearanceSettings(req: Request, res: Response): Promise<void> {
+  try {
+    const {
+      siteTheme,
+      mourningRibbon,
+      welcomeEnabled,
+      welcomeMode,
+      welcomeTitle,
+      welcomeContent,
+      welcomeImage,
+      welcomeButtonText,
+      welcomeBadgeEnabled,
+      welcomeBadgeText,
+    } = req.body;
+
+    const bad = (message: string): void => {
+      res.status(400).json({ status: 'error', message });
+    };
+
+    if (siteTheme !== undefined && !SITE_THEMES.includes(siteTheme)) {
+      bad('ธีมไม่ถูกต้อง (ต้องเป็น normal, mono หรือ gray)');
+      return;
+    }
+    if (welcomeMode !== undefined && !WELCOME_MODES.includes(welcomeMode)) {
+      bad('รูปแบบหน้าข่าวสารไม่ถูกต้อง (ต้องเป็น fullpage หรือ modal)');
+      return;
+    }
+    for (const [name, v] of [['mourningRibbon', mourningRibbon], ['welcomeEnabled', welcomeEnabled], ['welcomeBadgeEnabled', welcomeBadgeEnabled]] as const) {
+      if (v !== undefined && typeof v !== 'boolean') {
+        bad(`${name} ต้องเป็น boolean`);
+        return;
+      }
+    }
+    for (const [name, v, max] of [
+      ['welcomeTitle', welcomeTitle, 200],
+      ['welcomeContent', welcomeContent, 5000],
+      ['welcomeButtonText', welcomeButtonText, 60],
+      ['welcomeBadgeText', welcomeBadgeText, 80],
+    ] as const) {
+      if (v !== undefined && (typeof v !== 'string' || v.length > max)) {
+        bad(`${name} ต้องเป็นข้อความยาวไม่เกิน ${max} ตัวอักษร`);
+        return;
+      }
+    }
+    if (welcomeImage !== undefined) {
+      const imgErr = validateImageValue(welcomeImage);
+      if (imgErr) {
+        bad(imgErr);
+        return;
+      }
+    }
+
+    const entries: Array<[string, string, string]> = [];
+    if (siteTheme !== undefined) entries.push(['site_theme', siteTheme, 'ธีมสีเว็บไซต์ (normal = ปกติ, mono = ขาวดำ, gray = เทา)']);
+    if (mourningRibbon !== undefined) entries.push(['mourning_ribbon', String(mourningRibbon), 'แสดงริบบิ้นไว้อาลัยมุมขวาบน']);
+    if (welcomeEnabled !== undefined) entries.push(['welcome_enabled', String(welcomeEnabled), 'เปิดหน้าข่าวสารก่อนเข้าเว็บไซต์']);
+    if (welcomeMode !== undefined) entries.push(['welcome_mode', welcomeMode, 'รูปแบบหน้าข่าวสาร (fullpage = เต็มหน้า, modal = การ์ดบังหน้าจอ)']);
+    if (welcomeTitle !== undefined) entries.push(['welcome_title', welcomeTitle.trim(), 'หัวข้อหน้าข่าวสารก่อนเข้าเว็บ']);
+    if (welcomeContent !== undefined) entries.push(['welcome_content', welcomeContent.trim(), 'เนื้อหาหน้าข่าวสารก่อนเข้าเว็บ']);
+    if (welcomeImage !== undefined) entries.push(['welcome_image', welcomeImage, 'รูปประกอบหน้าข่าวสารก่อนเข้าเว็บ']);
+    if (welcomeBadgeEnabled !== undefined) entries.push(['welcome_badge_enabled', String(welcomeBadgeEnabled), 'แสดงป้ายหัวข้อเล็กเหนือหัวข้อหน้าข่าวสาร']);
+    if (welcomeBadgeText !== undefined) entries.push(['welcome_badge_text', welcomeBadgeText.trim(), 'ข้อความบนป้ายหัวข้อหน้าข่าวสาร']);
+    if (welcomeButtonText !== undefined) entries.push(['welcome_button_text', welcomeButtonText.trim(), 'ข้อความปุ่มเข้าสู่เว็บไซต์']);
+
+    if (entries.length === 0) {
+      bad('ไม่มีค่าที่ต้องบันทึก');
+      return;
+    }
+
+    // เปลี่ยนเนื้อหาหน้าข่าวสารเมื่อไร ให้ผู้เข้าชมที่เคยกดเข้าไปแล้วเห็นหน้านี้อีกครั้ง
+    // (หน้าตั้งค่าส่งช่อง welcome_* มาทุกครั้ง จึงต้องเทียบกับค่าเดิม ไม่งั้นแค่เปลี่ยนธีมก็เด้งหน้าข่าวสารซ้ำ)
+    const welcomeEntries = entries.filter(([k]) => k.startsWith('welcome_'));
+    if (welcomeEntries.length > 0) {
+      const existing = await prisma.siteSetting.findMany({
+        where: { key: { in: welcomeEntries.map(([k]) => k) } },
+        select: { key: true, value: true },
+      });
+      const before = new Map(existing.map((r) => [r.key, r.value]));
+      if (welcomeEntries.some(([k, v]) => before.get(k) !== v)) {
+        entries.push(['welcome_version', String(Date.now()), 'เลขเวอร์ชันหน้าข่าวสาร (เปลี่ยนเมื่อเนื้อหาหน้าข่าวสารเปลี่ยน)']);
+      }
+    }
+
+    await Promise.all(
+      entries.map(([key, value, description]) =>
+        prisma.siteSetting.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value, description },
+        })
+      )
+    );
+
+    res.json({ status: 'success', message: 'บันทึกการตั้งค่ารูปลักษณ์เว็บไซต์เรียบร้อยแล้ว' });
+  } catch (error: any) {
+    console.error('updateAppearanceSettings error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกการตั้งค่ารูปลักษณ์เว็บไซต์ได้',
+    });
+  }
+}
+
+/**
  * สถิติยอดผู้เข้าชมเว็บไซต์ (Centralized Visitor Counter)
  * สามารถกำหนดค่าเริ่มต้นก่อน Deploy ได้ที่ DEFAULT_VISITOR_BASE (เช่น 18520 หรือ 0)
  */
@@ -423,35 +683,96 @@ export async function getVisitorCount(_req: Request, res: Response): Promise<voi
   }
 }
 
+// กันการนับซ้ำ: ผู้เข้าชมคนเดิม (visitorId ที่เบราว์เซอร์สร้างเอง) นับได้ครั้งเดียวต่อช่วงเวลา และจำกัดจำนวนครั้งต่อ IP กันยิงถล่ม
+const VISIT_WINDOW_MS = 30 * 60 * 1000;
+const IP_WINDOW_MS = 60 * 60 * 1000;
+const IP_MAX_PER_WINDOW = 600;
+const VISITOR_ID_RE = /^[A-Za-z0-9-]{16,64}$/;
+const recentVisitors = new Map<string, number>();
+const ipHits = new Map<string, { start: number; count: number }>();
+
+function pruneVisitorCaches(now: number): void {
+  if (recentVisitors.size > 5000) {
+    for (const [id, at] of recentVisitors) if (now - at > VISIT_WINDOW_MS) recentVisitors.delete(id);
+  }
+  if (ipHits.size > 5000) {
+    for (const [ip, h] of ipHits) if (now - h.start > IP_WINDOW_MS) ipHits.delete(ip);
+  }
+}
+
 /**
- * บันทึกนับยอดผู้เข้าชมเว็บไซต์เพิ่มขึ้น 1 (สำหรับ Session ใหม่)
- * POST /api/settings/visitor-count/increment
+ * บันทึกนับยอดผู้เข้าชมเว็บไซต์เพิ่มขึ้น 1 (นับต่อผู้เข้าชมต่อ 30 นาที — รีเฟรชไม่นับซ้ำ)
+ * POST /api/settings/visitor-count/increment   Body: { visitorId: string }
  */
-export async function incrementVisitorCount(_req: Request, res: Response): Promise<void> {
+export async function incrementVisitorCount(req: Request, res: Response): Promise<void> {
   try {
-    const setting = await prisma.siteSetting.findUnique({
-      where: { key: 'visitor_count' },
-    });
+    const visitorId = req.body?.visitorId;
+    const now = Date.now();
+    const setting = await prisma.siteSetting.findUnique({ where: { key: 'visitor_count' } });
     const current = setting ? Number(setting.value) : DEFAULT_VISITOR_BASE;
-    const next = current + 1;
 
-    await prisma.siteSetting.upsert({
-      where: { key: 'visitor_count' },
-      update: { value: next.toString() },
-      create: {
-        key: 'visitor_count',
-        value: next.toString(),
-        description: 'สถิติยอดผู้เข้าชมเว็บไซต์รวม (ปรับค่าเริ่มต้นได้)',
-      },
-    });
+    const ip = req.ip || 'unknown';
+    const hit = ipHits.get(ip);
+    if (!hit || now - hit.start > IP_WINDOW_MS) ipHits.set(ip, { start: now, count: 1 });
+    else hit.count += 1;
+    const overLimit = (ipHits.get(ip)?.count ?? 0) > IP_MAX_PER_WINDOW;
 
-    res.json({ status: 'success', count: next });
+    const last = typeof visitorId === 'string' && VISITOR_ID_RE.test(visitorId) ? recentVisitors.get(visitorId) : undefined;
+    const valid = typeof visitorId === 'string' && VISITOR_ID_RE.test(visitorId);
+    if (!valid || overLimit || (last !== undefined && now - last < VISIT_WINDOW_MS)) {
+      res.json({ status: 'success', count: current, counted: false });
+      return;
+    }
+
+    recentVisitors.set(visitorId, now);
+    pruneVisitorCaches(now);
+
+    // เพิ่มแบบ atomic ในฐานข้อมูล (อ่านแล้วค่อยเขียน current+1 จะนับหายเมื่อมีคนเข้าพร้อมกัน)
+    const bump = () => prisma.$queryRaw<Array<{ value: string }>>`
+      UPDATE site_settings SET value = (value::bigint + 1)::text, "updatedAt" = NOW()
+      WHERE key = 'visitor_count' AND value ~ '^[0-9]+$'
+      RETURNING value`;
+    let rows = await bump();
+    if (rows.length === 0) {
+      await prisma.siteSetting.upsert({
+        where: { key: 'visitor_count' },
+        update: {},
+        create: {
+          key: 'visitor_count',
+          value: String(DEFAULT_VISITOR_BASE),
+          description: 'สถิติยอดผู้เข้าชมเว็บไซต์รวม (แอดมินปรับค่าได้จากหลังบ้าน)',
+        },
+      });
+      rows = await bump();
+    }
+    const next = rows.length > 0 ? Number(rows[0].value) : current;
+
+    res.json({ status: 'success', count: next, counted: true });
   } catch (error: any) {
     console.error('incrementVisitorCount error:', error);
     res.status(500).json({ status: 'error', message: 'ไม่สามารถนับสถิติผู้เข้าชมได้' });
   }
 }
 
-
-
-
+/**
+ * ตั้งค่ายอดผู้เข้าชม (เฉพาะ SUPER_ADMIN) เช่น ตั้งค่าเริ่มต้นหรือรีเซ็ต
+ * PUT /api/settings/visitor-count   Body: { count: number }
+ */
+export async function setVisitorCount(req: Request, res: Response): Promise<void> {
+  try {
+    const count = req.body?.count;
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 0 || count > 1_000_000_000) {
+      res.status(400).json({ status: 'error', message: 'ยอดผู้เข้าชมต้องเป็นจำนวนเต็ม 0 ถึง 1,000,000,000' });
+      return;
+    }
+    await prisma.siteSetting.upsert({
+      where: { key: 'visitor_count' },
+      update: { value: String(count) },
+      create: { key: 'visitor_count', value: String(count), description: 'สถิติยอดผู้เข้าชมเว็บไซต์รวม (แอดมินปรับค่าได้จากหลังบ้าน)' },
+    });
+    res.json({ status: 'success', message: 'ตั้งค่ายอดผู้เข้าชมเรียบร้อยแล้ว', count });
+  } catch (error: any) {
+    console.error('setVisitorCount error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถตั้งค่ายอดผู้เข้าชมได้' });
+  }
+}

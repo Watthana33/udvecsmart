@@ -8,6 +8,13 @@ import { Role } from '@prisma/client';
  * ดึงรายชื่อผู้ใช้งานทั้งหมด (สำหรับ SUPER_ADMIN)
  * GET /api/users
  */
+const MIN_PASSWORD_LENGTH = 8;
+
+// ล็อกอินแปลงอีเมลเป็นตัวเล็กเสมอ จึงต้องเก็บแบบตัวเล็กตั้งแต่สร้าง ไม่งั้นเข้าสู่ระบบไม่ได้
+function normalizeEmail(email: string): string {
+  return String(email).toLowerCase().trim();
+}
+
 export async function getUsers(req: AuthRequest, res: Response): Promise<void> {
   try {
     const users = await prisma.user.findMany({
@@ -44,7 +51,6 @@ export async function getUsers(req: AuthRequest, res: Response): Promise<void> {
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงรายชื่อผู้ใช้งานได้',
-      detail: error.message,
     });
   }
 }
@@ -64,8 +70,12 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
       });
       return;
     }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ status: 'error', message: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
+      return;
+    }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     if (existing) {
       res.status(400).json({
         status: 'error',
@@ -79,7 +89,7 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
 
     const newUser = await prisma.user.create({
       data: {
-        email,
+        email: normalizeEmail(email),
         passwordHash,
         fullName,
         role: role === 'SUPER_ADMIN' ? Role.SUPER_ADMIN : Role.SCHOOL_ADMIN,
@@ -111,7 +121,6 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถสร้างผู้ใช้งานได้',
-      detail: error.message,
     });
   }
 }
@@ -134,8 +143,21 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    // ไม่ให้ระบบเหลือแอดมิน สอจ. เป็นศูนย์ (ลดสิทธิ์ตัวสุดท้าย = ไม่มีใครเข้าหลังบ้านส่วนกลางได้)
+    if (existing.role === Role.SUPER_ADMIN && role && role !== 'SUPER_ADMIN') {
+      const supers = await prisma.user.count({ where: { role: Role.SUPER_ADMIN } });
+      if (supers <= 1) {
+        res.status(400).json({ status: 'error', message: 'ไม่สามารถลดสิทธิ์แอดมิน สอจ. คนสุดท้ายได้ ต้องมีแอดมิน สอจ. อย่างน้อย 1 บัญชี' });
+        return;
+      }
+    }
+    if (password && typeof password === 'string' && password.trim() !== '' && password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ status: 'error', message: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
+      return;
+    }
+
     const updateData: any = {};
-    if (email) updateData.email = email;
+    if (email) updateData.email = normalizeEmail(email);
     if (fullName) updateData.fullName = fullName;
     if (role) updateData.role = role === 'SUPER_ADMIN' ? Role.SUPER_ADMIN : Role.SCHOOL_ADMIN;
     if (institutionId !== undefined) updateData.institutionId = institutionId || null;
@@ -174,7 +196,6 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถแก้ไขข้อมูลผู้ใช้งานได้',
-      detail: error.message,
     });
   }
 }
@@ -195,6 +216,12 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
+    const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (target?.role === Role.SUPER_ADMIN && (await prisma.user.count({ where: { role: Role.SUPER_ADMIN } })) <= 1) {
+      res.status(400).json({ status: 'error', message: 'ไม่สามารถลบแอดมิน สอจ. คนสุดท้ายได้' });
+      return;
+    }
+
     await prisma.user.delete({
       where: { id },
     });
@@ -208,7 +235,6 @@ export async function deleteUser(req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถลบบัญชีผู้ใช้งานได้',
-      detail: error.message,
     });
   }
 }

@@ -291,7 +291,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0284c7] mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-0284c7 mb-1">
               <TrendingUp className="w-4 h-4" />
               <span>Employment Comparison by College</span>
             </div>
@@ -354,7 +354,7 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
         {/* Chart 2: ประเภทการมีงานทำ */}
         <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#932d16] mb-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-hx-932d16 mb-1">
               <Briefcase className="w-4 h-4" />
               <span>Employment Categorization</span>
             </div>
@@ -436,15 +436,15 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
           <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[11px]">
             <div className="p-2 rounded-xl bg-purple-50 text-purple-950 font-semibold border border-purple-100">
               <div>รัฐบาล</div>
-              <div className="text-xs font-bold text-[#7c3aed] mt-0.5">{graduatesEmployment.byWorkplace.government.toLocaleString()}</div>
+              <div className="text-xs font-bold text-hx-7c3aed mt-0.5">{graduatesEmployment.byWorkplace.government.toLocaleString()}</div>
             </div>
             <div className="p-2 rounded-xl bg-sky-50 text-sky-950 font-semibold border border-sky-100">
               <div>เอกชน</div>
-              <div className="text-xs font-bold text-[#0284c7] mt-0.5">{graduatesEmployment.byWorkplace.private.toLocaleString()}</div>
+              <div className="text-xs font-bold text-hx-0284c7 mt-0.5">{graduatesEmployment.byWorkplace.private.toLocaleString()}</div>
             </div>
             <div className="p-2 rounded-xl bg-amber-50 text-amber-950 font-semibold border border-amber-100">
               <div>อิสระ</div>
-              <div className="text-xs font-bold text-[#f59e0b] mt-0.5">{graduatesEmployment.byWorkplace.selfEmployed.toLocaleString()}</div>
+              <div className="text-xs font-bold text-hx-f59e0b mt-0.5">{graduatesEmployment.byWorkplace.selfEmployed.toLocaleString()}</div>
             </div>
           </div>
         </div>

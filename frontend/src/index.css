@@ -30,3 +30,142 @@ html {
   background-color: #ffffff !important;
   opacity: 1 !important;
 }
+
+/* ธีมไว้อาลัย: สั่งผ่านหลังบ้าน (site_theme) แล้ว App.tsx ใส่คลาสที่ <html> */
+/* ขาวดำ: ไม่ใช้ filter (เพราะจะทำให้รูปภาพและกราฟเป็นเทาด้วย) — ใช้การสลับตัวแปรสี UI ใน tailwind.config.js แทน */
+
+/* เทาทั้งเว็บ: พื้นหลังขาวกลายเป็นเทาหม่น (~#c1c1c1) ตัวอักษรยังอ่านชัด */
+html.theme-gray {
+  filter: grayscale(100%) brightness(0.82) contrast(0.8);
+}
+
+/* หน้าข่าวสารก่อนเข้าเว็บไซต์ */
+@keyframes welcomeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes welcomeRise {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.welcome-backdrop {
+  animation: welcomeFadeIn 250ms ease-out both;
+}
+
+.welcome-card {
+  animation: welcomeRise 350ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+/* สลับแท็บแบบเนียน ๆ */
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tab-enter {
+  animation: tabFadeIn 260ms ease-out backwards;
+}
+
+/*
+ * หน้าต่าง/ฉากมืด/การแจ้งเตือนแบบ fixed ที่วางอยู่ในกล่อง space-y-* จะโดนระยะเว้น (margin-top) ของ space-y
+ * ดันลงมา ทำให้ฉากมืดไม่คลุมขอบบนของจอ (เช่น หน้าต่างแก้ไขบัญชีผู้ใช้ห่างขอบบน 32px) → ตัด margin ออก
+ */
+[class*="space-y-"] > .fixed {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-backdrop,
+  .welcome-card,
+  .tab-enter {
+    animation: none;
+  }
+}
+
+/*
+ * Dropdown (<select>) ทั้งเว็บ: ใหญ่ขึ้น และหน้าตาเท่ากันทุกเครื่อง
+ * - เลิกใช้ลูกศร/ขอบเนทีฟของ macOS (ที่ทำให้ตัวอักษรไทยถูกตัด ตำแหน่งลูกศรเพี้ยน และขนาดไม่ตรงกับช่องอื่น)
+ * - ใช้ !important เพราะแต่ละ select ใน TSX ตั้งขนาด text-xs/py-* ไว้เอง ซึ่งเล็กเกินไป
+ * - เว้นซ้ายไว้ตามคลาสเดิม (ตัวกรองมีไอคอนวางทับด้านซ้าย)
+ */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  min-height: 3rem;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+  padding-right: 2.75rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 7.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 1.15rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+select:disabled {
+  cursor: not-allowed;
+}
+
+select option,
+select optgroup {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #1e293b;
+  background-color: #ffffff;
+}
+
+select optgroup {
+  font-weight: 700;
+}
+
+/*
+ * ความต่างระหว่าง macOS กับ Windows
+ * - scrollbar: Windows แสดงแถบเลื่อนแบบหนาตลอด (Mac เป็นแบบซ่อนอัตโนมัติ) จึงทำให้บางที่ดูเพี้ยน → ใช้แบบบางเหมือนกัน
+ * - .no-scrollbar ถูกใช้ใน Navbar มือถือแต่ไม่เคยถูกนิยาม จึงเห็นแถบเลื่อนบน Windows
+ * - font-mono: ตัวเลขรหัส/โทรศัพท์ ใช้ tabular-nums แทนฟอนต์ monospace
+ * - checkbox: ขนาดและสีเดียวกันทุกระบบ
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: rgb(var(--c-hx-932d16, 147 45 22));
+  cursor: pointer;
+}
+
+/* เมื่อเปิดริบบิ้นไว้อาลัยมุมขวาบน เว้นที่ให้ส่วนหัว ไม่ให้ริบบิ้นบังปุ่มเข้าสู่ระบบ/ออกจากระบบ */
+html.has-ribbon header > div {
+  padding-right: 6.75rem;
+}
+
+@media (min-width: 640px) {
+  html.has-ribbon header > div {
+    padding-right: 8.5rem;
+  }
+}

@@ -138,11 +138,51 @@ export interface NewsItem {
   };
 }
 
+export type SiteTheme = 'normal' | 'mono' | 'gray';
+export type WelcomeMode = 'fullpage' | 'modal';
+
 export interface SiteSettings {
   is_data_submission_open?: boolean;
   system_title?: string;
   current_academic_year?: number;
   current_semester?: number;
+  // รูปลักษณ์เว็บไซต์: ธีมไว้อาลัย & หน้าข่าวสารก่อนเข้าเว็บ
+  site_theme?: SiteTheme;
+  mourning_ribbon?: boolean;
+  welcome_enabled?: boolean;
+  welcome_mode?: WelcomeMode;
+  // API แปลงค่าที่หน้าตาเป็นตัวเลขให้เป็น number จึงอาจได้ number ถ้าแอดมินพิมพ์แต่ตัวเลข
+  welcome_title?: string | number;
+  welcome_content?: string | number;
+  welcome_image?: string;
+  welcome_button_text?: string | number;
+  welcome_badge_enabled?: boolean;
+  welcome_badge_text?: string | number;
+  // รูปไม่ได้มากับ /settings/public (หนัก) — ดึงผ่าน /settings/*-image แยก
+  welcome_has_image?: boolean;
+  welcome_image_version?: number;
+  banner_has_image?: boolean;
+  banner_image_version?: number;
+  // ข้อมูลติดต่อ สอจ. (ถ้ายังไม่ตั้ง ใช้ค่าเริ่มต้นใน utils/siteContact.ts)
+  contact_address?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  contact_hours?: string;
+  contact_facebook?: string;
+  welcome_version?: number | string;
+}
+
+export interface AppearanceSettingsInput {
+  siteTheme?: SiteTheme;
+  mourningRibbon?: boolean;
+  welcomeEnabled?: boolean;
+  welcomeMode?: WelcomeMode;
+  welcomeTitle?: string;
+  welcomeContent?: string;
+  welcomeImage?: string;
+  welcomeButtonText?: string;
+  welcomeBadgeEnabled?: boolean;
+  welcomeBadgeText?: string;
 }
 
 export interface AcademicPeriodItem {
@@ -238,6 +278,8 @@ export interface SchoolStatFormData {
   civilTeachersFemale: number;
   hiredTeachersMale: number;
   hiredTeachersFemale: number;
+  govEmpTeachersMale: number;
+  govEmpTeachersFemale: number;
 
   // ภาวะการมีงานทำ
   gradVocCertCount: number;
@@ -341,6 +383,11 @@ export interface DveAndCareerSummary {
     maleTeachers: number;
     femaleTeachers: number;
     civilTeachers: {
+      male: number;
+      female: number;
+      total: number;
+    };
+    govEmpTeachers?: {
       male: number;
       female: number;
       total: number;

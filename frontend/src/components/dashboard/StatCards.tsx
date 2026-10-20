@@ -1,13 +1,16 @@
 import React from 'react';
-import { StatsOverview } from '../../types';
+import { StatsOverview, Institution } from '../../types';
+import { parsePrograms } from '../../utils/programs';
 import { UserCheck, Users, GraduationCap, School } from 'lucide-react';
 
 interface StatCardsProps {
   stats: StatsOverview | null;
   loading: boolean;
+  institutions?: Institution[];
+  selectedInstitutionId?: string;
 }
 
-export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
+export const StatCards: React.FC<StatCardsProps> = ({ stats, loading, institutions: instList = [], selectedInstitutionId = 'ALL' }) => {
   if (loading || !stats) {
     return (
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,6 +35,16 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
   const instTotal = institutions.total || 1;
   const publicInstPercent = Math.round((institutions.public / instTotal) * 100);
 
+  const selectedInst = selectedInstitutionId !== 'ALL'
+    ? instList.find((i) => i.id === selectedInstitutionId)
+    : undefined;
+  const programsTotal = selectedInst
+    ? (() => {
+        const list = parsePrograms(selectedInst.programsList);
+        return list.length > 0 ? list.length : selectedInst.programsCount ?? 0;
+      })()
+    : 0;
+
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -39,13 +52,13 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
         {/* ==========================================
             Card 1: ผู้บริหารสถานศึกษา (Executive)
            ========================================== */}
-        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(147,45,22,0.15)] border border-slate-200/90 hover:border-[#932d16]/30 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:shadow-[0_16px_32px_-8px_rgba(147,45,22,0.15)] border border-slate-200/90 hover:border-hx-932d16/30 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
                 ผู้บริหาร
               </span>
-              <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100/80 text-[#932d16] flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100/80 text-hx-932d16 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
                 <UserCheck className="w-5 h-5 stroke-[1.8]" />
               </div>
             </div>
@@ -63,7 +76,7 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
           <div className="mt-4 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 font-medium">ผู้อำนวยการสถานศึกษา</span>
-              <span className="inline-flex items-center gap-1 font-bold text-[#932d16] bg-[#932d16]/10 px-2.5 py-0.5 rounded-lg text-[11px]">
+              <span className="inline-flex items-center gap-1 font-bold text-hx-932d16 bg-hx-932d16/10 px-2.5 py-0.5 rounded-lg text-[11px]">
                 {executivesCount} คน
               </span>
             </div>
@@ -165,7 +178,7 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                สถานศึกษาในสังกัด
+                {selectedInst ? 'สาขาที่เปิดสอน' : 'สถานศึกษาในสังกัด'}
               </span>
               <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-xs">
                 <School className="w-5 h-5 stroke-[1.8]" />
@@ -174,19 +187,29 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
 
             <div className="flex items-baseline gap-2">
               <span className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                {institutions.total}
+                {selectedInst ? programsTotal.toLocaleString() : institutions.total}
               </span>
               <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                แห่ง
+                {selectedInst ? 'สาขา' : 'แห่ง'}
               </span>
             </div>
           </div>
 
+          {selectedInst ? (
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between text-xs gap-2">
+                <span className="text-slate-500 font-medium truncate">{selectedInst.shortName || selectedInst.name}</span>
+                <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg text-[11px] shrink-0">
+                  {selectedInst.type === 'PRIVATE' ? 'เอกชน' : 'รัฐบาล'}
+                </span>
+              </div>
+            </div>
+          ) : (
           <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-1.5 bg-[#932d16]/5 px-2.5 py-1 rounded-xl border border-[#932d16]/10">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#932d16] shrink-0" />
-                <span className="text-slate-600 text-[11px] truncate">รัฐบาล: <strong className="text-[#932d16]">{institutions.public}</strong></span>
+              <div className="flex items-center gap-1.5 bg-hx-932d16/5 px-2.5 py-1 rounded-xl border border-hx-932d16/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-hx-932d16 shrink-0" />
+                <span className="text-slate-600 text-[11px] truncate">รัฐบาล: <strong className="text-hx-932d16">{institutions.public}</strong></span>
               </div>
               <div className="flex items-center gap-1.5 bg-amber-50/70 px-2.5 py-1 rounded-xl border border-amber-100/60">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
@@ -196,10 +219,11 @@ export const StatCards: React.FC<StatCardsProps> = ({ stats, loading }) => {
 
             {/* Subtle ratio bar */}
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
-              <div style={{ width: `${publicInstPercent}%` }} className="bg-[#932d16] h-full" title={`รัฐบาล ${publicInstPercent}%`} />
+              <div style={{ width: `${publicInstPercent}%` }} className="bg-hx-932d16 h-full" title={`รัฐบาล ${publicInstPercent}%`} />
               <div style={{ width: `${100 - publicInstPercent}%` }} className="bg-amber-400 h-full" title={`เอกชน ${100 - publicInstPercent}%`} />
             </div>
           </div>
+          )}
         </div>
 
       </div>

@@ -68,7 +68,7 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
     if (!file) return;
     try {
       setUploadingImage(true);
-      // อัปโหลดไฟล์ต้นฉบับขึ้นเซิร์ฟเวอร์ (ไม่ย่อ ไม่เกิน 30MB) แล้วใช้รูปแสดงผลในหน้าข่าวสาร
+      // อัปโหลดไฟล์ต้นฉบับขึ้นเซิร์ฟเวอร์ (ไม่ย่อ ไม่เกิน 50MB) แล้วใช้รูปแสดงผลในหน้าข่าวสาร
       const uploaded = await uploadImage(file);
       setNewImage(uploaded.urls.display);
     } catch (err: any) {
@@ -322,7 +322,7 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
                 className="w-full py-6 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-hx-932d16 hover:text-hx-932d16 transition-colors flex items-center justify-center gap-2"
               >
                 <ImagePlus className="w-5 h-5" />
-                <span>{uploadingImage ? 'กำลังอัปโหลด...' : 'เลือกรูปภาพ (เก็บไฟล์ต้นฉบับไว้ให้ ไม่เกิน 30MB)'}</span>
+                <span>{uploadingImage ? 'กำลังอัปโหลด...' : 'เลือกรูปภาพ (เก็บไฟล์ต้นฉบับไว้ให้ ไม่เกิน 50MB)'}</span>
               </button>
             )}
           </div>

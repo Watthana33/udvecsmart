@@ -14,7 +14,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
  * อัปโหลดรูป (ไฟล์ดิบเป็น request body; ชื่อไฟล์เดิมส่งใน header X-Filename แบบ encodeURIComponent)
- * POST /api/images   (SUPER_ADMIN / SCHOOL_ADMIN, ไม่เกิน 30MB)
+ * POST /api/images   (SUPER_ADMIN / SCHOOL_ADMIN, ไม่เกิน 50MB)
  */
 export async function uploadImage(req: AuthRequest, res: Response): Promise<void> {
   try {

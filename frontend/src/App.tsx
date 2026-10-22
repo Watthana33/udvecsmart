@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
+import { resolveBanners } from './utils/bannerImages';
 import { BannerSection } from './components/dashboard/BannerSection';
 import { resolveContact } from './utils/siteContact';
 import { OverviewHero } from './components/dashboard/OverviewHero';
@@ -99,6 +100,7 @@ function applySiteTheme(theme: string | undefined) {
 export function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [activeTab, setActiveTabState] = useState<string>(() => pathToTab(window.location.pathname));
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -195,6 +197,31 @@ export function App() {
       setAuthChecked(true);
     }
   }, []);
+
+  // เซสชัน 12 ชม.: หมดอายุแล้วออกจากระบบอัตโนมัติ (ทั้งตอนเรียก API ได้ 401 และตั้งเวลาตาม exp ใน token)
+  useEffect(() => {
+    const expire = () => {
+      localStorage.removeItem('udpvecsmart_token');
+      setUser(null);
+      setActiveTab("overview");
+      setSessionExpired(true);
+      setIsLoginOpen(true);
+    };
+    window.addEventListener('udpvecsmart:session-expired', expire);
+    let timer: number | undefined;
+    if (user) {
+      try {
+        const token = localStorage.getItem('udpvecsmart_token') || '';
+        const exp = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp;
+        const ms = exp * 1000 - Date.now();
+        timer = window.setTimeout(expire, Math.min(Math.max(ms, 0), 2 ** 31 - 1));
+      } catch { /* token อ่านไม่ได้ → ปล่อยให้ 401 จัดการ */ }
+    }
+    return () => {
+      window.removeEventListener('udpvecsmart:session-expired', expire);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [user]);
 
   // เปิดลิงก์ /portal ตรง ๆ แต่ยังไม่ได้ล็อกอิน → กลับหน้าแรก
   useEffect(() => {
@@ -301,9 +328,7 @@ export function App() {
   const welcomeImage = siteSettings?.welcome_has_image
     ? `${API_BASE_URL}/settings/welcome-image?v=${siteSettings.welcome_image_version ?? ''}`
     : '';
-  const bannerSrc = siteSettings?.banner_has_image
-    ? `${API_BASE_URL}/settings/banner-image?v=${siteSettings.banner_image_version ?? ''}`
-    : undefined;
+  const bannerSrcs = resolveBanners(siteSettings);
   const contact = resolveContact(siteSettings);
   const showWelcome =
     settingsReady &&
@@ -331,7 +356,7 @@ export function App() {
       {/* 2. Main Content */}
       <main className="flex-grow">
         {/* Full-width Hero Banner with Auto-Fit & Super Admin Changer (Only for Super Admin) */}
-        <BannerSection src={bannerSrc} />
+        <BannerSection srcs={bannerSrcs} />
 
         {/* Anchor point for automatic smooth scrolling to tab content */}
         <div id="main-tab-content" className="scroll-mt-24" />
@@ -474,8 +499,10 @@ export function App() {
       {/* 5. Login Modal */}
       <LoginModal
         isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
+        notice={sessionExpired ? 'เซสชันหมดอายุ (ล็อกอินอยู่ได้ 12 ชั่วโมง) กรุณาเข้าสู่ระบบอีกครั้ง' : undefined}
+        onClose={() => { setIsLoginOpen(false); setSessionExpired(false); }}
         onLoginSuccess={(loggedUser) => {
+          setSessionExpired(false);
           setUser(loggedUser);
           setActiveTab('portal');
           setTimeout(() => {

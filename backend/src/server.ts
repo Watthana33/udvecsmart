@@ -12,6 +12,8 @@ import contactRoutes from './routes/contact.routes.js';
 import userRoutes from './routes/user.routes.js';
 import dveAndCareerRoutes from './routes/dveAndCareer.routes.js';
 import imageRoutes from './routes/image.routes.js';
+import systemRoutes from './routes/system.routes.js';
+import { reconcileOnBoot } from './services/selfUpdate.js';
 import { apiLimiter } from './middlewares/rateLimit.js';
 
 const app = express();
@@ -68,6 +70,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dve-career', dveAndCareerRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/system', systemRoutes);
 
 
 // Healthcheck & Database connection test
@@ -78,6 +81,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
       service: 'UDPVECSmart API',
+      version: process.env.APP_VERSION || 'baked',
       timestamp: new Date().toISOString(),
       database: {
         status: 'connected',
@@ -106,7 +110,7 @@ app.get('/', (_req: Request, res: Response) => {
 app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => {
   if (res.headersSent) return next(err);
   if (err?.type === 'entity.too.large') {
-    res.status(413).json({ status: 'error', message: 'ข้อมูลที่ส่งมาใหญ่เกินกำหนด (ข้อมูลทั่วไปไม่เกิน 2MB, รูปภาพอัปโหลดผ่านระบบรูปได้ไม่เกิน 30MB)' });
+    res.status(413).json({ status: 'error', message: 'ข้อมูลที่ส่งมาใหญ่เกินกำหนด (ข้อมูลทั่วไปไม่เกิน 2MB, รูปภาพอัปโหลดผ่านระบบรูปได้ไม่เกิน 50MB)' });
     return;
   }
   if (err?.type === 'entity.parse.failed') {
@@ -121,6 +125,8 @@ app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => 
 const server = app.listen(ENV.PORT, () => {
   console.log(`🚀 UDPVECSmart Server is running on http://localhost:${ENV.PORT}`);
   console.log(`🩺 Healthcheck available at: http://localhost:${ENV.PORT}/api/health`);
+  // สรุปผลงานอัปเดต/ย้อนคืนที่ค้างข้ามการรีสตาร์ต (ไม่ทำอะไรถ้าไม่ได้เปิดโหมดอัปเดตตัวเอง)
+  if (process.env.PORT === undefined || Number(process.env.PORT) !== 5099) void reconcileOnBoot();
 });
 
 // Graceful shutdown

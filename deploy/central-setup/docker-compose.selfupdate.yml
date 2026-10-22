@@ -1,0 +1,16 @@
+# ไฟล์เสริมสำหรับแอดมินส่วนกลาง (ตั้งค่าครั้งเดียว) — ใช้ร่วมกับ docker-compose.prod.yml:
+#   docker compose -f docker-compose.prod.yml -f deploy/central-setup/docker-compose.selfupdate.yml up -d --build
+# หลังจากนั้นการอัปเดตเว็บทำจากหน้าแอดมิน (SUPER_ADMIN) ได้เอง ไม่ต้อง rebuild
+services:
+  backend:
+    environment:
+      UPDATER_MODE: launcher
+      RELEASES_DIR: /releases
+      GITHUB_REPO: ${GITHUB_REPO:-Watthana33/udvecsmart}
+    volumes:
+      - ./releases:/releases
+    command: node /releases/launcher.mjs
+  frontend:
+    volumes:
+      - ./releases:/releases:ro
+      - ./deploy/central-setup/nginx.selfupdate.conf:/etc/nginx/conf.d/default.conf:ro

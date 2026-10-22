@@ -8,7 +8,7 @@ import { ENV } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 
 /** ขนาดไฟล์ต้นฉบับสูงสุดต่อรูป */
-export const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 
 export type ImageVariant = 'thumb' | 'display' | 'original';
 export const IMAGE_VARIANTS: ImageVariant[] = ['thumb', 'display', 'original'];
@@ -88,7 +88,7 @@ function safeFileName(name: string | undefined, ext: string): string {
 export async function saveUploadedImage(inputBuffer: Buffer, originalName: string | undefined, uploadedById?: string): Promise<SavedImage> {
   let buffer = inputBuffer;
   if (buffer.length === 0) throw new ImageUploadError('ไม่พบไฟล์รูปภาพ');
-  if (buffer.length > MAX_IMAGE_BYTES) throw new ImageUploadError('รูปภาพใหญ่เกิน 30MB', 413);
+  if (buffer.length > MAX_IMAGE_BYTES) throw new ImageUploadError('รูปภาพใหญ่เกิน 50MB', 413);
 
   // HEIC: เก็บไฟล์ HEIC ที่ส่งมาไว้เป็น source.heic แล้วใช้ JPEG ที่แปลงเป็น "ต้นฉบับ" ที่ใช้งาน/ดูภาพใหญ่ได้ในทุกเบราว์เซอร์
   let heicSource: Buffer | null = null;

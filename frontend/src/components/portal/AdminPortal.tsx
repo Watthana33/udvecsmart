@@ -79,6 +79,7 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  RefreshCw,
 } from 'lucide-react';
 import { PROGRAM_LEVELS, ProgramLevel, parsePrograms } from '../../utils/programs';
 
@@ -144,6 +145,7 @@ import { OfficialReportPrintModal } from '../reports/OfficialReportPrintModal';
 import { AppearanceSettings } from './AppearanceSettings';
 import { useSlidingPill } from '../../hooks/useSlidingPill';
 import { SiteContentSettings } from './SiteContentSettings';
+import { SystemUpdate } from './SystemUpdate';
 
 interface AdminPortalProps {
   user: UserProfile;
@@ -177,7 +179,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // ==========================================
   // SUPER ADMIN TABS (ตามภาพต้นแบบ 1-4)
   // ==========================================
-  const [superAdminTab, setSuperAdminTab] = useState<'institutions' | 'banners_news' | 'settings_glow' | 'users'>('institutions');
+  const [superAdminTab, setSuperAdminTab] = useState<'institutions' | 'banners_news' | 'settings_glow' | 'users' | 'system'>('institutions');
 
   // ==========================================
   // SUPER ADMIN STATE: TAB 1 (สถานศึกษา)
@@ -1793,6 +1795,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <Users className="w-4 h-4" />
                 <span>จัดการผู้ใช้งานระบบ</span>
               </button>
+              <button
+                onClick={() => setSuperAdminTab('system')}
+                className={`pb-3 border-b-2 transition-all flex items-center gap-2 ${
+                  superAdminTab === 'system'
+                    ? 'border-hx-932d16 text-hx-932d16'
+                    : 'border-transparent hover:text-slate-900'
+                }`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>อัปเดตระบบ</span>
+              </button>
             </div>
           </div>
         )}
@@ -2608,6 +2621,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {/* =========================================================================
           SUPER ADMIN TAB 4: จัดการผู้ใช้งานระบบ (ตรงตามภาพ 4 - media_1789761977890.png)
          ========================================================================= */}
+      {isSuperAdmin && superAdminTab === 'system' && <SystemUpdate onToast={showToast} />}
+
       {isSuperAdmin && superAdminTab === 'users' && (
         <div className="space-y-6">
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">

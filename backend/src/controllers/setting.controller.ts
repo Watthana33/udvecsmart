@@ -147,6 +147,40 @@ export async function updateBanner(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * ตั้งรูปแบนเนอร์หัวเว็บแบบสไลด์ (เฉพาะ SUPER_ADMIN) — เพิ่มเองสูงสุด 4 รูป (แสดงต่อจากรูปเริ่มต้น เป็นรูปที่ 2-5); ส่ง [] = มีแต่รูปเริ่มต้น
+ * PUT /api/settings/banners  Body: { images: string[] }  (ลิงก์รูปจากระบบอัปโหลด ไม่รับ data URL)
+ */
+export async function updateBanners(req: Request, res: Response): Promise<void> {
+  try {
+    const { images } = req.body;
+    if (!Array.isArray(images) || images.length > 4) {
+      res.status(400).json({ status: 'error', message: 'แบนเนอร์ที่เพิ่มเองต้องไม่เกิน 4 รูป (รูปที่ 1 เป็นรูปเริ่มต้น)' });
+      return;
+    }
+    for (const img of images) {
+      const err = img === '' || (typeof img === 'string' && img.startsWith('data:')) ? 'รูปแบนเนอร์ต้องเป็นลิงก์รูปที่อัปโหลดแล้ว' : validateImageValue(img);
+      if (err) {
+        res.status(400).json({ status: 'error', message: err });
+        return;
+      }
+    }
+    await prisma.$transaction([
+      prisma.siteSetting.upsert({
+        where: { key: 'banner_images' },
+        update: { value: JSON.stringify(images) },
+        create: { key: 'banner_images', value: JSON.stringify(images), description: 'รูปแบนเนอร์หัวเว็บแบบสไลด์ (JSON ไม่เกิน 4 รูป ต่อจากรูปเริ่มต้น)' },
+      }),
+      // เลิกใช้รูปเดี่ยวแบบเดิม เพื่อไม่ให้ค้างทับรายการใหม่
+      prisma.siteSetting.updateMany({ where: { key: 'banner_image' }, data: { value: '' } }),
+    ]);
+    res.json({ status: 'success', message: images.length === 0 ? 'เหลือเฉพาะแบนเนอร์เริ่มต้นแล้ว' : `บันทึกแบนเนอร์เพิ่มเติม ${images.length} รูปเรียบร้อยแล้ว` });
+  } catch (error: any) {
+    console.error('updateBanners error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกแบนเนอร์ได้' });
+  }
+}
+
+/**
  * ตั้งข้อมูลติดต่อ สอจ. ที่แสดงใน Footer และหน้าติดต่อเรา (เฉพาะ SUPER_ADMIN)
  * PUT /api/settings/contact-info
  */

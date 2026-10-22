@@ -7,7 +7,7 @@ import { uploadLimiter } from '../middlewares/rateLimit.js';
 
 const router = Router();
 
-// POST /api/images - อัปโหลดรูป (ไฟล์ดิบ ไม่เกิน 30MB) เฉพาะแอดมิน
+// POST /api/images - อัปโหลดรูป (ไฟล์ดิบ ไม่เกิน 50MB) เฉพาะแอดมิน
 router.post(
   '/',
   authenticateJWT,

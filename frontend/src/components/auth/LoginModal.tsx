@@ -7,6 +7,7 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: UserProfile) => void;
+  notice?: string;
 }
 
 // =========================================================================
@@ -16,7 +17,7 @@ interface LoginModalProps {
 // =========================================================================
 const SHOW_DEV_PRESETS = false; // เปลี่ยนเป็น true เพื่อแสดงปุ่มทางลัดสำหรับทดสอบระบบ
 
-export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
+export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess, notice }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -82,6 +83,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
+          {notice && !error && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-800">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+              <span>{notice}</span>
+            </div>
+          )}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />

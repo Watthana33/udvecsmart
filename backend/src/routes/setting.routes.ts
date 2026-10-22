@@ -14,6 +14,7 @@ import {
   getWelcomeImage,
   getBannerImage,
   updateBanner,
+  updateBanners,
   updateContactInfo,
 } from '../controllers/setting.controller.js';
 import { authenticateJWT, requireRole } from '../middlewares/auth.middleware.js';
@@ -35,6 +36,7 @@ router.get('/banner-image', getBannerImage);
 
 // ตั้งแบนเนอร์ / ข้อมูลติดต่อ (เฉพาะ SUPER_ADMIN)
 router.put('/banner', authenticateJWT, requireRole([Role.SUPER_ADMIN]), updateBanner);
+router.put('/banners', authenticateJWT, requireRole([Role.SUPER_ADMIN]), updateBanners);
 router.put('/contact-info', authenticateJWT, requireRole([Role.SUPER_ADMIN]), updateContactInfo);
 
 // PUT /api/settings/submission-toggle - สลับสถานะเปิด-ปิดรับข้อมูล (เฉพาะ SUPER_ADMIN)

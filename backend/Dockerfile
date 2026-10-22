@@ -28,7 +28,7 @@ WORKDIR /app
 
 # ติดตั้ง OpenSSL สำหรับ Prisma Query Engine บน Alpine Linux
 # libheif-tools + libde265: แปลงรูป HEIC จาก iPhone เป็น JPEG (heif-dec)
-RUN apk add --no-cache openssl libheif-tools libde265
+RUN apk add --no-cache openssl libheif-tools libde265 postgresql16-client
 
 ENV NODE_ENV=production
 

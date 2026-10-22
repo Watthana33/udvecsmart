@@ -1,0 +1,48 @@
+# สร้างไฟล์ release พร้อมใช้เมื่อ push แท็ก vX.Y.Z (เช่น git tag -a v1.2.0 -m "สรุปสิ่งที่เปลี่ยน" && git push origin v1.2.0)
+# ไฟล์ที่ได้แนบกับ GitHub Release: ระบบอัปเดตในหน้าแอดมินดาวน์โหลดไปติดตั้งเอง (ไม่ต้อง rebuild Docker บนเซิร์ฟเวอร์)
+name: release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ตรวจว่า nginx ของโหมดอัปเดตตัวเองตรงกับของ frontend
+        run: sh deploy/central-setup/check-nginx-sync.sh
+
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.arch == 'arm64'
+
+      - name: Build (ใน node:20-alpine เหมือนอิมเมจจริง เพื่อให้ prisma/sharp ตรงกับเครื่องปลายทาง)
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} \
+            -v "$PWD":/src -w /src \
+            -e TAG="${GITHUB_REF_NAME}" -e COMMIT="${GITHUB_SHA}" -e ARCH="${{ matrix.arch }}" \
+            node:20-alpine sh deploy/build-release.sh
+
+      - name: แนบไฟล์เข้า GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          NAME="udvec-release-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-from-tag --verify-tag
+          fi
+          gh release upload "$GITHUB_REF_NAME" "dist-release/$NAME" "dist-release/$NAME.sha256" --clobber
+          # manifest ใช้ร่วมกันทุกสถาปัตยกรรม (อัปโหลดจากงาน amd64 เท่านั้น)
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            gh release upload "$GITHUB_REF_NAME" "dist-release/udvec-manifest-${GITHUB_REF_NAME}.json" --clobber
+          fi

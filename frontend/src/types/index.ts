@@ -161,6 +161,7 @@ export interface SiteSettings {
   // รูปไม่ได้มากับ /settings/public (หนัก) — ดึงผ่าน /settings/*-image แยก
   welcome_has_image?: boolean;
   welcome_image_version?: number;
+  banner_images?: string; // JSON ของลิงก์รูปแบนเนอร์ (ไม่เกิน 5 รูป)
   banner_has_image?: boolean;
   banner_image_version?: number;
   // ข้อมูลติดต่อ สอจ. (ถ้ายังไม่ตั้ง ใช้ค่าเริ่มต้นใน utils/siteContact.ts)

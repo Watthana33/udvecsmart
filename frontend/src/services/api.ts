@@ -31,8 +31,44 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// บัตรผ่านหมดอายุ (12 ชม.) หรือไม่ถูกต้อง → ล้าง token แล้วแจ้งให้ App ออกจากระบบ
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const hadToken = !!localStorage.getItem('udpvecsmart_token');
+    const isLogin = String(err.config?.url || '').includes('/auth/login');
+    if (err.response?.status === 401 && hadToken && !isLogin) {
+      localStorage.removeItem('udpvecsmart_token');
+      window.dispatchEvent(new Event('udpvecsmart:session-expired'));
+    }
+    return Promise.reject(err);
+  }
+);
+
 export async function updateAppearanceSettings(data: AppearanceSettingsInput) {
   const res = await api.put('/settings/appearance', data);
+  return res.data;
+}
+
+// ระบบอัปเดตเวอร์ชันเว็บ (เฉพาะ SUPER_ADMIN)
+export async function getSystemStatus() {
+  const res = await api.get('/system/status');
+  return res.data;
+}
+export async function checkSystemUpdate() {
+  const res = await api.post('/system/check', {}, { timeout: 160000 });
+  return res.data;
+}
+export async function getSystemHealth() {
+  const res = await api.get('/system/health');
+  return res.data;
+}
+export async function startSystemUpgrade(tag: string) {
+  const res = await api.post('/system/upgrade', { tag });
+  return res.data;
+}
+export async function startSystemRollback(restoreDb: boolean) {
+  const res = await api.post('/system/rollback', { restoreDb });
   return res.data;
 }
 
@@ -381,7 +417,7 @@ export interface UploadedImageResult {
 }
 
 /**
- * อัปโหลดรูปขึ้นเซิร์ฟเวอร์ (ไฟล์ต้นฉบับ ไม่ย่อ ไม่เกิน 30MB) — คืนลิงก์รูปแสดงผล/รูปย่อ/ต้นฉบับ
+ * อัปโหลดรูปขึ้นเซิร์ฟเวอร์ (ไฟล์ต้นฉบับ ไม่ย่อ ไม่เกิน 50MB) — คืนลิงก์รูปแสดงผล/รูปย่อ/ต้นฉบับ
  * ข้อความ error บอกสาเหตุจริงจากเซิร์ฟเวอร์ (ชนิดไฟล์ไม่รองรับ, ไฟล์ใหญ่เกิน ฯลฯ)
  */
 export async function uploadImage(file: File, onProgress?: (percent: number) => void): Promise<UploadedImageResult> {
@@ -391,7 +427,7 @@ export async function uploadImage(file: File, onProgress?: (percent: number) => 
     throw new Error('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
   }
   if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
-    throw new Error(`รูปภาพใหญ่เกิน 30MB (ไฟล์นี้ ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+    throw new Error(`รูปภาพใหญ่เกิน 50MB (ไฟล์นี้ ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
   }
   try {
     const res = await api.post('/images', file, {
@@ -408,6 +444,9 @@ export async function uploadImage(file: File, onProgress?: (percent: number) => 
   }
 }
 
+export async function updateBannerImages(images: string[]): Promise<void> {
+  await api.put('/settings/banners', { images });
+}
 export async function updateBannerImage(image: string): Promise<void> {
   await api.put('/settings/banner', { image });
 }

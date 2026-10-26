@@ -32,12 +32,17 @@ api.interceptors.request.use((config) => {
 });
 
 // บัตรผ่านหมดอายุ (12 ชม.) หรือไม่ถูกต้อง → ล้าง token แล้วแจ้งให้ App ออกจากระบบ
+// ระหว่างเปลี่ยนรหัสผ่าน (ตัวเองอาจได้บัตรผ่านใหม่) ไม่ตีความ 401 ของ request อื่นว่าเซสชันหมด
+let passwordChangePending = 0;
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    const hadToken = !!localStorage.getItem('udpvecsmart_token');
+    const current = localStorage.getItem('udpvecsmart_token');
     const isLogin = String(err.config?.url || '').includes('/auth/login');
-    if (err.response?.status === 401 && hadToken && !isLogin) {
+    // request ที่ส่งด้วยบัตรผ่านเก่า (ถูกเปลี่ยนเป็นใบใหม่ไปแล้ว) ไม่ต้องสั่งออกจากระบบ
+    const usedStale = current && err.config?.headers?.Authorization && err.config.headers.Authorization !== `Bearer ${current}`;
+    if (err.response?.status === 401 && current && !isLogin && !usedStale && passwordChangePending === 0) {
       localStorage.removeItem('udpvecsmart_token');
       window.dispatchEvent(new Event('udpvecsmart:session-expired'));
     }
@@ -311,7 +316,8 @@ export async function getUsers(): Promise<any[]> {
 
 export async function createUser(data: {
   email: string;
-  password: string;
+  password?: string;
+  useLink?: boolean;
   fullName: string;
   role: 'SUPER_ADMIN' | 'SCHOOL_ADMIN';
   institutionId?: string;
@@ -330,8 +336,31 @@ export async function updateUser(
     institutionId?: string;
   }
 ): Promise<any> {
-  const res = await api.put(`/users/${id}`, data);
-  return res.data;
+  if (data.password) passwordChangePending++;
+  try {
+    const res = await api.put(`/users/${id}`, data);
+    // เปลี่ยนรหัสของตัวเอง → เซิร์ฟเวอร์ออกบัตรผ่านใหม่ (ใบเดิมใช้ไม่ได้แล้ว) ให้ App ตั้งเวลาหมดอายุใหม่
+    if (res.data?.accessToken) {
+      localStorage.setItem('udpvecsmart_token', res.data.accessToken);
+      window.dispatchEvent(new Event('udpvecsmart:token-refreshed'));
+    }
+    return res.data;
+  } finally {
+    if (data.password) passwordChangePending--;
+  }
+}
+
+// ลิงก์ตั้งรหัสผ่าน (แอดมินสร้าง → ผู้ใช้เปิดลิงก์ตั้งรหัสเอง)
+export async function createPasswordLink(userId: string): Promise<{ token: string; expiresAt: string; email: string }> {
+  const res = await api.post(`/users/${userId}/password-link`);
+  return res.data.data;
+}
+export async function checkPasswordLink(token: string): Promise<{ email: string; fullName: string; expiresAt: string }> {
+  const res = await api.post('/auth/password-link/check', { token });
+  return res.data.data;
+}
+export async function applyPasswordLink(token: string, password: string): Promise<void> {
+  await api.post('/auth/password-link/use', { token, password });
 }
 
 export async function deleteUser(id: string): Promise<any> {
@@ -444,8 +473,8 @@ export async function uploadImage(file: File, onProgress?: (percent: number) => 
   }
 }
 
-export async function updateBannerImages(images: string[]): Promise<void> {
-  await api.put('/settings/banners', { images });
+export async function updateBannerImages(images: string[], selected: string): Promise<void> {
+  await api.put('/settings/banners', { images, selected });
 }
 export async function updateBannerImage(image: string): Promise<void> {
   await api.put('/settings/banner', { image });
@@ -459,6 +488,12 @@ export async function updateContactInfo(data: {
   contactFacebook?: string;
 }): Promise<void> {
   await api.put('/settings/contact-info', data);
+}
+
+export async function updateOicStructure(
+  cards: Array<{ title: string; lines: string[]; children?: Array<{ title: string; lines: string[] }> }>
+): Promise<void> {
+  await api.put('/settings/oic-structure', { cards });
 }
 
 // ========================================================
@@ -530,3 +565,38 @@ export async function getDveAndCareerSummary(
 
 
 
+
+// ดึงข่าวจาก Facebook Page (เฉพาะ SUPER_ADMIN) — token ไม่ถูกส่งกลับ
+export interface FacebookStatus {
+  pageId: string;
+  hasToken: boolean;
+  enabled: boolean;
+  lastSync: string;
+  lastError: string;
+  imported: number;
+}
+
+export async function getFacebookSettings(): Promise<FacebookStatus> {
+  const res = await api.get('/settings/facebook');
+  return res.data.data;
+}
+
+export async function updateFacebookSettings(data: { pageId?: string; token?: string; enabled?: boolean }): Promise<FacebookStatus> {
+  const res = await api.put('/settings/facebook', data);
+  return res.data.data;
+}
+
+export async function clearFacebookToken(): Promise<FacebookStatus> {
+  const res = await api.delete('/settings/facebook/token');
+  return res.data.data;
+}
+
+export async function syncFacebookNow(): Promise<FacebookStatus & { added: number; fetched: number }> {
+  const res = await api.post('/settings/facebook/sync');
+  return res.data.data;
+}
+
+export async function testFacebookConnection(data: { pageId?: string; token?: string }): Promise<{ pageName: string; postsReadable: boolean; recentPosts: number }> {
+  const res = await api.post('/settings/facebook/test', data);
+  return res.data.data;
+}

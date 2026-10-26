@@ -1,15 +1,16 @@
 import { Response } from 'express';
-import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { Role } from '@prisma/client';
+import crypto from 'crypto';
+import { signToken } from '../utils/jwt.js';
+import { issuePasswordToken } from './passwordLink.controller.js';
+import { hashPassword, validatePassword } from '../utils/password.js';
 
 /**
  * ดึงรายชื่อผู้ใช้งานทั้งหมด (สำหรับ SUPER_ADMIN)
  * GET /api/users
  */
-const MIN_PASSWORD_LENGTH = 8;
-
 // ล็อกอินแปลงอีเมลเป็นตัวเล็กเสมอ จึงต้องเก็บแบบตัวเล็กตั้งแต่สร้าง ไม่งั้นเข้าสู่ระบบไม่ได้
 function normalizeEmail(email: string): string {
   return String(email).toLowerCase().trim();
@@ -61,17 +62,18 @@ export async function getUsers(req: AuthRequest, res: Response): Promise<void> {
  */
 export async function createUser(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { email, password, fullName, role, institutionId } = req.body;
+    const { email, password, fullName, role, institutionId, useLink } = req.body;
 
-    if (!email || !password || !fullName) {
+    if (!email || !fullName || (!password && !useLink)) {
       res.status(400).json({
         status: 'error',
         message: 'กรุณากรอกข้อมูล Username/Email, รหัสผ่าน และ ชื่อ-นามสกุล ให้ครบถ้วน',
       });
       return;
     }
-    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-      res.status(400).json({ status: 'error', message: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
+    const pwError = useLink ? null : validatePassword(password);
+    if (pwError) {
+      res.status(400).json({ status: 'error', message: pwError });
       return;
     }
 
@@ -84,10 +86,12 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // ให้ผู้ใช้ตั้งรหัสเองผ่านลิงก์ → ใส่รหัสสุ่มที่ไม่มีใครรู้ไว้ก่อน (เข้าสู่ระบบไม่ได้จนกว่าจะตั้งรหัส)
+    const passwordHash = await hashPassword(useLink ? crypto.randomBytes(32).toString('hex') : password);
 
-    const newUser = await prisma.user.create({
+    // โหมดส่งลิงก์: สร้างบัญชีกับลิงก์ในคำขอเดียว (ลิงก์ล้ม = ไม่สร้างบัญชี ไม่เหลือบัญชีที่ล็อกอินไม่ได้)
+    const { newUser, link } = await prisma.$transaction(async (tx) => {
+    const newUser = await tx.user.create({
       data: {
         email: normalizeEmail(email),
         passwordHash,
@@ -110,11 +114,15 @@ export async function createUser(req: AuthRequest, res: Response): Promise<void>
         createdAt: true,
       },
     });
+    const link = useLink ? await issuePasswordToken(tx, newUser.id, req.user?.userId ?? null) : null;
+    return { newUser, link };
+    });
 
     res.status(201).json({
       status: 'success',
       message: 'สร้างบัญชีผู้ใช้งานสำเร็จ',
       data: newUser,
+      passwordLink: link,
     });
   } catch (error: any) {
     console.error('createUser error:', error);
@@ -151,8 +159,9 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
         return;
       }
     }
-    if (password && typeof password === 'string' && password.trim() !== '' && password.length < MIN_PASSWORD_LENGTH) {
-      res.status(400).json({ status: 'error', message: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
+    const pwError = password && typeof password === 'string' && password.trim() !== '' ? validatePassword(password) : null;
+    if (pwError) {
+      res.status(400).json({ status: 'error', message: pwError });
       return;
     }
 
@@ -163,8 +172,8 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
     if (institutionId !== undefined) updateData.institutionId = institutionId || null;
 
     if (password && password.trim() !== '') {
-      const salt = await bcrypt.genSalt(10);
-      updateData.passwordHash = await bcrypt.hash(password, salt);
+      updateData.passwordHash = await hashPassword(password);
+      updateData.passwordChangedAt = new Date(); // เซสชันเดิมของบัญชีนี้หลุด
     }
 
     const updatedUser = await prisma.user.update({
@@ -186,10 +195,17 @@ export async function updateUser(req: AuthRequest, res: Response): Promise<void>
       },
     });
 
+    // แอดมินเปลี่ยนรหัสของตัวเอง → ออกบัตรผ่านใหม่ให้ ไม่ต้องล็อกอินซ้ำ
+    const accessToken =
+      updateData.passwordHash && req.user?.userId === id
+        ? signToken({ userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role, institutionId: updatedUser.institutionId })
+        : undefined;
+
     res.json({
       status: 'success',
       message: 'แก้ไขข้อมูลผู้ใช้งานสำเร็จ',
       data: updatedUser,
+      accessToken,
     });
   } catch (error: any) {
     console.error('updateUser error:', error);

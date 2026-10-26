@@ -2,6 +2,18 @@ import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 10;
 
+// กฎรหัสผ่านที่เดียวของระบบ (ตั้งเอง/แอดมินตั้ง/ตั้งผ่านลิงก์) — ไม่บังคับย้อนหลังกับรหัสที่ใช้อยู่แล้วตอนล็อกอิน
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 20;
+
+/** ตรวจความยาวรหัสผ่าน: คืนข้อความ error หรือ null ถ้าผ่าน */
+export function validatePassword(password: unknown): string | null {
+  if (typeof password !== 'string' || password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+    return `รหัสผ่านต้องยาว ${PASSWORD_MIN}-${PASSWORD_MAX} ตัวอักษร`;
+  }
+  return null;
+}
+
 /**
  * แปลงรหัสผ่านข้อความธรรมดา (Plain text) เป็นข้อความเข้ารหัส (Hash)
  * @param password รหัสผ่านธรรมดา เช่น "Password@1234"

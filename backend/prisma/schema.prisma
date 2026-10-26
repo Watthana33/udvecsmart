@@ -32,6 +32,8 @@ model User {
   institutionId String?
   institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
   news          News[]
+  passwordTokens PasswordToken[]
+  passwordChangedAt DateTime? // เปลี่ยนรหัสแล้วบัตรผ่าน (JWT) ที่ออกก่อนหน้านี้ใช้ไม่ได้
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -214,6 +216,7 @@ model News {
   content       String       @db.Text
   coverImageUrl String?
   linkUrl       String?
+  fbPostId      String?      @unique // id โพสต์จาก Facebook (ข่าวที่ดึงมาอัตโนมัติ)
   category      NewsCategory @default(ANNOUNCEMENT)
   isPublished   Boolean      @default(true)
   viewCount     Int          @default(1)
@@ -262,4 +265,19 @@ model UploadedImage {
   createdAt    DateTime @default(now())
 
   @@map("uploaded_images")
+}
+
+// ลิงก์ตั้งรหัสผ่านแบบใช้ครั้งเดียว (เก็บเฉพาะ hash ของโทเคน)
+model PasswordToken {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_tokens")
 }

@@ -138,7 +138,7 @@ export interface NewsItem {
   };
 }
 
-export type SiteTheme = 'normal' | 'mono' | 'gray';
+export type SiteTheme = 'normal' | 'province' | 'mono' | 'gray';
 export type WelcomeMode = 'fullpage' | 'modal';
 
 export interface SiteSettings {
@@ -161,7 +161,8 @@ export interface SiteSettings {
   // รูปไม่ได้มากับ /settings/public (หนัก) — ดึงผ่าน /settings/*-image แยก
   welcome_has_image?: boolean;
   welcome_image_version?: number;
-  banner_images?: string; // JSON ของลิงก์รูปแบนเนอร์ (ไม่เกิน 5 รูป)
+  banner_selected?: string; // ลิงก์รูปแบนเนอร์ที่ใช้แสดง ('' = รูปเริ่มต้น)
+  banner_images?: string; // JSON ของลิงก์รูปแบนเนอร์ที่อัปโหลดไว้ (ไม่เกิน 4 รูป)
   banner_has_image?: boolean;
   banner_image_version?: number;
   // ข้อมูลติดต่อ สอจ. (ถ้ายังไม่ตั้ง ใช้ค่าเริ่มต้นใน utils/siteContact.ts)
@@ -170,6 +171,8 @@ export interface SiteSettings {
   contact_email?: string;
   contact_hours?: string;
   contact_facebook?: string;
+  // การ์ดข้อมูลในหน้าโครงสร้าง สอจ. (JSON ของ { cards: [{ title, lines }] })
+  oic_structure?: string;
   welcome_version?: number | string;
 }
 

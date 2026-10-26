@@ -13,6 +13,7 @@ import userRoutes from './routes/user.routes.js';
 import dveAndCareerRoutes from './routes/dveAndCareer.routes.js';
 import imageRoutes from './routes/image.routes.js';
 import systemRoutes from './routes/system.routes.js';
+import { startFacebookScheduler } from './services/facebookSync.js';
 import { reconcileOnBoot } from './services/selfUpdate.js';
 import { apiLimiter } from './middlewares/rateLimit.js';
 
@@ -125,6 +126,7 @@ app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => 
 const server = app.listen(ENV.PORT, () => {
   console.log(`🚀 UDPVECSmart Server is running on http://localhost:${ENV.PORT}`);
   console.log(`🩺 Healthcheck available at: http://localhost:${ENV.PORT}/api/health`);
+  startFacebookScheduler();
   // สรุปผลงานอัปเดต/ย้อนคืนที่ค้างข้ามการรีสตาร์ต (ไม่ทำอะไรถ้าไม่ได้เปิดโหมดอัปเดตตัวเอง)
   if (process.env.PORT === undefined || Number(process.env.PORT) !== 5099) void reconcileOnBoot();
 });

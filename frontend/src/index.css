@@ -77,9 +77,30 @@ html.theme-gray {
   margin-bottom: 0 !important;
 }
 
+/* หน้าต่าง (modal) ปิดแบบค่อย ๆ หาย — ใช้คู่กับ .welcome-backdrop / .welcome-card ตอนเปิด */
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modalSink {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(12px) scale(0.98); }
+}
+
+.modal-backdrop-out {
+  animation: modalFadeOut 200ms ease-in both;
+}
+
+.modal-card-out {
+  animation: modalSink 200ms ease-in both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .welcome-backdrop,
   .welcome-card,
+  .modal-backdrop-out,
+  .modal-card-out,
   .tab-enter {
     animation: none;
   }

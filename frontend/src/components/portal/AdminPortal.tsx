@@ -36,6 +36,7 @@ import {
   saveDveDepartments,
   getCareerClassrooms,
   saveCareerClassrooms,
+  createPasswordLink,
 } from '../../services/api';
 
 import {
@@ -64,8 +65,6 @@ import {
   Plus,
   Trash2,
   Star,
-  ChevronUp,
-  ChevronDown,
   ClipboardList,
   Newspaper,
   Layers,
@@ -80,6 +79,9 @@ import {
   EyeOff,
   GripVertical,
   RefreshCw,
+  Link2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { PROGRAM_LEVELS, ProgramLevel, parsePrograms } from '../../utils/programs';
 
@@ -145,7 +147,10 @@ import { OfficialReportPrintModal } from '../reports/OfficialReportPrintModal';
 import { AppearanceSettings } from './AppearanceSettings';
 import { useSlidingPill } from '../../hooks/useSlidingPill';
 import { SiteContentSettings } from './SiteContentSettings';
+import { FacebookSettings } from './FacebookSettings';
 import { SystemUpdate } from './SystemUpdate';
+import { copyText } from '../../utils/copyText';
+import { PASSWORD_MIN, PASSWORD_MAX } from '../../utils/passwordRules';
 
 interface AdminPortalProps {
   user: UserProfile;
@@ -153,6 +158,28 @@ interface AdminPortalProps {
   onAcademicPeriodsChange?: () => void;
   /** บันทึกการตั้งค่าเว็บ (ธีม/ข่าวสาร/แบนเนอร์/ข้อมูลติดต่อ) แล้ว ให้ App โหลดใหม่ */
   onSiteSettingsChange?: () => void;
+}
+
+
+/** state แท็บที่จำค่าไว้ใน sessionStorage — รีเฟรชแล้วอยู่แท็บเดิม (ค่าที่ไม่รู้จัก/ใช้ storage ไม่ได้ = ใช้ค่าเริ่มต้น) */
+function usePersistedTab<T extends string>(key: string, allowed: readonly T[], fallback: T): [T, (v: T) => void] {
+  const [tab, setTabState] = useState<T>(() => {
+    try {
+      const saved = sessionStorage.getItem(key);
+      return allowed.includes(saved as T) ? (saved as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  });
+  const setTab = (v: T) => {
+    setTabState(v);
+    try {
+      sessionStorage.setItem(key, v);
+    } catch {
+      /* ใช้ sessionStorage ไม่ได้ก็ข้าม */
+    }
+  };
+  return [tab, setTab];
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
@@ -168,6 +195,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // FLOATING TOAST NOTIFICATION
   // ==========================================
   const [toast, setToast] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
+  // toast อยู่ชั้นบนสุด (top layer ของ popover) จึงไม่ถูกหน้าต่าง/ฉากมืดใด ๆ บัง
+  const toastRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = toastRef.current as (HTMLDivElement & { showPopover?: () => void; hidePopover?: () => void }) | null;
+    if (!toast || !el?.showPopover) return;
+    try {
+      if (el.matches(':popover-open')) el.hidePopover?.();
+      el.showPopover();
+    } catch {
+      /* เบราว์เซอร์เก่าไม่รองรับ popover → ใช้ z-index ตามเดิม */
+    }
+  }, [toast]);
 
   const showToast = (type: 'success' | 'error', title: string, message: string) => {
     setToast({ type, title, message });
@@ -179,7 +218,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // ==========================================
   // SUPER ADMIN TABS (ตามภาพต้นแบบ 1-4)
   // ==========================================
-  const [superAdminTab, setSuperAdminTab] = useState<'institutions' | 'banners_news' | 'settings_glow' | 'users' | 'system'>('institutions');
+  const [superAdminTab, setSuperAdminTab] = usePersistedTab('udpvecsmart:portal-tab', ['institutions', 'banners_news', 'settings_glow', 'users', 'system'] as const, 'institutions');
 
   // ==========================================
   // SUPER ADMIN STATE: TAB 1 (สถานศึกษา)
@@ -206,7 +245,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [loadingCollegeStat, setLoadingCollegeStat] = useState(false);
 
   // School Admin Portal Tab & Form Section Navigator
-  const [schoolPortalTab, setSchoolPortalTab] = useState<'stats_form' | 'news_view'>('stats_form');
+  const [schoolPortalTab, setSchoolPortalTab] = usePersistedTab('udpvecsmart:school-portal-tab', ['stats_form', 'news_view'] as const, 'stats_form');
   const [activeFormSection, setActiveFormSection] = useState<'all' | 'general' | 'teachers' | 'grades' | 'dve' | 'career' | 'graduates'>('all');
 
   // ==========================================
@@ -259,6 +298,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [userRole, setUserRole] = useState<'SUPER_ADMIN' | 'SCHOOL_ADMIN'>('SCHOOL_ADMIN');
   const [userInstitutionId, setUserInstitutionId] = useState('');
   const [savingUser, setSavingUser] = useState(false);
+  const [userPwMode, setUserPwMode] = useState<'set' | 'link'>('set'); // ตอนสร้างบัญชี: ตั้งรหัสเอง / ส่งลิงก์ให้ผู้ใช้ตั้งเอง
+  const [pwLink, setPwLink] = useState<{ url: string; email: string; expiresAt: string } | null>(null);
+  const [pwLinkCopied, setPwLinkCopied] = useState(false);
+  const [pwLinkClosing, setPwLinkClosing] = useState(false);
+  const closePwLink = () => {
+    setPwLinkClosing(true);
+    window.setTimeout(() => {
+      setPwLink(null);
+      setPwLinkClosing(false);
+    }, 200);
+  };
+  const [makingLinkFor, setMakingLinkFor] = useState<string | null>(null);
 
   // ==========================================
   // ACADEMIC PERIODS STATE (รอบปีการศึกษาและภาคเรียน)
@@ -1093,7 +1144,62 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Super Admin: Move News Up / Down
+  // Super Admin: ลากเพื่อเรียงลำดับข่าว (pointer events: ใช้ได้ทั้งเมาส์และจอสัมผัส)
+  const [dragNewsId, setDragNewsId] = useState<string | null>(null);
+  const dragStartIds = useRef<string[]>([]);
+  const newsListRef = useRef<NewsItem[]>([]);
+  newsListRef.current = newsList;
+
+  const handleNewsDragStart = (e: React.PointerEvent<HTMLButtonElement>, id: string) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStartIds.current = newsListRef.current.map((n) => n.id);
+    setDragNewsId(id);
+  };
+
+  const handleNewsDragMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!dragNewsId) return;
+    // เลื่อนหน้าจออัตโนมัติเมื่อลากใกล้ขอบบน/ล่าง
+    if (e.clientY < 90) window.scrollBy(0, -16);
+    else if (e.clientY > window.innerHeight - 90) window.scrollBy(0, 16);
+    const row = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-news-id]');
+    const overId = row?.getAttribute('data-news-id');
+    if (!overId || overId === dragNewsId) return;
+    setNewsList((prev) => {
+      const from = prev.findIndex((n) => n.id === dragNewsId);
+      const to = prev.findIndex((n) => n.id === overId);
+      if (from < 0 || to < 0 || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  const handleNewsDragEnd = async (e: React.PointerEvent<HTMLButtonElement>, cancelled = false) => {
+    if (!dragNewsId) return;
+    const id = dragNewsId;
+    setDragNewsId(null);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    const current = newsListRef.current;
+    const orderedIds = current.map((n) => n.id);
+    if (cancelled) {
+      setNewsList(dragStartIds.current.map((i) => current.find((n) => n.id === i)).filter(Boolean) as NewsItem[]);
+      return;
+    }
+    if (orderedIds.join() === dragStartIds.current.join()) return;
+    try {
+      await reorderNews(orderedIds);
+      const pos = orderedIds.indexOf(id) + 1;
+      showToast('success', 'ปรับลำดับข่าวสำเร็จ', `ย้าย "${current[pos - 1].title}" ไปลำดับที่ ${pos} แล้ว`);
+      onRefreshStats();
+    } catch (err: any) {
+      showToast('error', 'ปรับลำดับข่าวไม่สำเร็จ', err.response?.data?.message || err.message);
+      loadNewsData();
+    }
+  };
+
+  // Super Admin: Move News Up / Down (ใช้กับแป้นลูกศรบนไอคอนจับ)
   const handleMoveNews = async (index: number, direction: 'UP' | 'DOWN') => {
     const targetIndex = direction === 'UP' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newsList.length) return;
@@ -1266,14 +1372,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         });
         showToast('success', 'อัปเดตผู้ใช้งานสำเร็จ!', `แก้ไขข้อมูลบัญชี ${userEmail} เรียบร้อยแล้ว`);
       } else {
-        await createUser({
+        const created = await createUser({
           email: userEmail,
-          password: userPassword,
+          password: userPwMode === 'set' ? userPassword : undefined,
+          useLink: userPwMode === 'link',
           fullName: userFullName,
           role: userRole,
           institutionId: userInstitutionId || undefined,
         });
         showToast('success', 'สร้างบัญชีสำเร็จ!', `สร้างบัญชีผู้ใช้งาน ${userEmail} เรียบร้อยแล้ว`);
+        if (created?.passwordLink?.token) {
+          setPwLinkCopied(false);
+          setPwLink({
+            url: `${window.location.origin}/set-password#t=${created.passwordLink.token}`,
+            email: created.data?.email || userEmail,
+            expiresAt: created.passwordLink.expiresAt,
+          });
+        }
       }
       setShowUserModal(false);
       setEditingUserId(null);
@@ -1285,6 +1400,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       showToast('error', 'บันทึกผู้ใช้ไม่สำเร็จ', err.response?.data?.message || err.message);
     } finally {
       setSavingUser(false);
+    }
+  };
+
+  // สร้างลิงก์ตั้งรหัสผ่าน แล้วเปิดกล่องให้คัดลอกไปส่งเอง (LINE/อีเมล)
+  const handleMakePasswordLink = async (id: string, email: string) => {
+    try {
+      setMakingLinkFor(id);
+      const r = await createPasswordLink(id);
+      setPwLinkCopied(false);
+      setPwLink({ url: `${window.location.origin}/set-password#t=${r.token}`, email: r.email || email, expiresAt: r.expiresAt });
+    } catch (err: any) {
+      showToast('error', 'สร้างลิงก์ไม่สำเร็จ', err.response?.data?.message || err.message);
+    } finally {
+      setMakingLinkFor(null);
     }
   };
 
@@ -1640,7 +1769,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           FLOATING TOAST NOTIFICATION
          ========================================== */}
       {toast && (
-        <div className="fixed top-20 right-6 z-50 animate-bounce">
+        <div
+          ref={toastRef}
+          {...({ popover: 'manual' } as any)}
+          style={{ inset: 'auto', top: '5rem', right: '1.5rem' }}
+          className="fixed z-50 m-0 p-0 border-0 bg-transparent overflow-visible animate-bounce"
+        >
           <div
             className={`p-4 rounded-2xl shadow-2xl border flex items-start gap-3 text-sm max-w-md ${
               toast.type === 'success'
@@ -2047,6 +2181,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           {/* แบนเนอร์ / ข้อมูลติดต่อ / ยอดผู้เข้าชม — เก็บที่เซิร์ฟเวอร์ */}
           <SiteContentSettings onToast={showToast} onChanged={onSiteSettingsChange} />
 
+          {/* ดึงข่าวจาก Facebook Page */}
+          <FacebookSettings onToast={showToast} />
+
           {/* Card: ธีมไว้อาลัย & หน้าข่าวสารก่อนเข้าเว็บไซต์ */}
           <AppearanceSettings onToast={showToast} onChanged={onSiteSettingsChange} />
 
@@ -2054,8 +2191,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <h3 className="text-base font-black text-slate-900">รายการสไลด์ข่าวประชาสัมพันธ์ (News Carousel)</h3>
-                <p className="text-xs text-slate-500 mt-0.5">จัดการรูปภาพและข้อความที่จะนำไปวิ่งสไลด์บนหน้าแรก</p>
+                <h3 className="text-base font-black text-slate-900">รายการสไลด์ข่าวประชาสัมพันธ์</h3>
+                <p className="text-xs text-slate-500 mt-0.5">จัดการรูปภาพและข้อความที่จะนำไปวิ่งสไลด์บนหน้าแรก ลากที่ไอคอนจับ (หน้าตัวเลขลำดับ) เพื่อสลับลำดับ</p>
               </div>
               <button
                 onClick={() => {
@@ -2208,10 +2345,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
+                    <th className="py-3 px-4 text-center w-24">ลำดับ</th>
                     <th className="py-3 px-4 w-24">รูปภาพ</th>
                     <th className="py-3 px-4">หัวข้อข่าว</th>
                     <th className="py-3 px-4">คำอธิบายย่อ</th>
-                    <th className="py-3 px-4 text-center">ลำดับ</th>
                     <th className="py-3 px-4 text-center">จัดการ</th>
                   </tr>
                 </thead>
@@ -2230,7 +2367,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </tr>
                   ) : (
                     newsList.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={item.id}
+                        data-news-id={item.id}
+                        className={`transition-colors ${dragNewsId === item.id ? 'bg-amber-50 shadow-inner' : 'hover:bg-slate-50/80'}`}
+                      >
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                            <span className="font-extrabold text-slate-700 min-w-[14px] text-center text-xs">
+                              {idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onPointerDown={(e) => handleNewsDragStart(e, item.id)}
+                              onPointerMove={handleNewsDragMove}
+                              onPointerUp={(e) => handleNewsDragEnd(e)}
+                              onPointerCancel={(e) => handleNewsDragEnd(e, true)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp') { e.preventDefault(); handleMoveNews(idx, 'UP'); }
+                                if (e.key === 'ArrowDown') { e.preventDefault(); handleMoveNews(idx, 'DOWN'); }
+                              }}
+                              style={{ touchAction: 'none' }}
+                              className={`p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors ${dragNewsId === item.id ? 'cursor-grabbing bg-slate-200' : 'cursor-grab'}`}
+                              title="ลากเพื่อสลับลำดับ"
+                              aria-label={`ลากเพื่อสลับลำดับข่าว ${item.title}`}
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           <div className="w-16 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
                             {item.coverImageUrl ? (
@@ -2257,33 +2422,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           )}
                         </td>
                         <td className="py-3 px-4 text-slate-500 max-w-xs truncate">{item.content}</td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-                            <span className="font-extrabold text-slate-700 min-w-[14px] text-center text-xs">
-                              {idx + 1}
-                            </span>
-                            <div className="flex flex-col gap-0.5 ml-1">
-                              <button
-                                type="button"
-                                onClick={() => handleMoveNews(idx, 'UP')}
-                                disabled={idx === 0}
-                                className="p-0.5 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
-                                title="เลื่อนขึ้น (แสดงก่อน)"
-                              >
-                                <ChevronUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMoveNews(idx, 'DOWN')}
-                                disabled={idx === newsList.length - 1}
-                                className="p-0.5 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
-                                title="เลื่อนลง"
-                              >
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
@@ -2641,6 +2779,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   setUserFullName('');
                   setUserRole('SCHOOL_ADMIN');
                   setUserInstitutionId('');
+                  setUserPwMode('link');
                   setShowUserModal(true);
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-hx-932d16 hover:bg-hx-7a2411 text-white rounded-xl text-xs font-bold shadow-md transition-all"
@@ -4616,14 +4755,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                 />
               </div>
+              {!editingUserId && (
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-slate-700">การตั้งรหัสผ่าน</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ['link', 'ส่งลิงก์ให้ผู้ใช้ตั้งเอง'],
+                      ['set', 'แอดมินตั้งรหัสให้'],
+                    ] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setUserPwMode(mode)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                          userPwMode === mode ? 'bg-hx-932d16 text-white border-hx-932d16' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {userPwMode === 'link' && (
+                    <p className="text-[11px] text-slate-500 leading-relaxed">บันทึกแล้วระบบจะสร้างลิงก์ (ใช้ได้ครั้งเดียว ภายใน 24 ชม.) ให้คัดลอกไปส่งทาง LINE หรืออีเมล</p>
+                  )}
+                </div>
+              )}
+              {(editingUserId || userPwMode === 'set') && (
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700">
-                  รหัสผ่าน {editingUserId && '(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)'}
+                  รหัสผ่าน ({PASSWORD_MIN}-{PASSWORD_MAX} ตัวอักษร) {editingUserId && '· เว้นว่างไว้หากไม่ต้องการเปลี่ยน · เปลี่ยนแล้วผู้ใช้ต้องล็อกอินใหม่'}
                 </label>
                 <div className="relative">
                   <input
                     type={showUserPassword ? 'text' : 'password'}
-                    required={!editingUserId}
+                    required={!editingUserId && userPwMode === 'set'}
+                    minLength={PASSWORD_MIN}
+                    maxLength={PASSWORD_MAX}
                     placeholder="••••••••"
                     value={userPassword}
                     onChange={(e) => setUserPassword(e.target.value)}
@@ -4640,6 +4807,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </button>
                 </div>
               </div>
+              )}
+              {editingUserId && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    หรือส่งลิงก์ให้ผู้ใช้ตั้งรหัสผ่านเอง (ใช้ได้ครั้งเดียว ภายใน 24 ชม.) เหมาะกับกรณีลืมรหัส — ข้อมูลที่แก้ในหน้าต่างนี้ยังอยู่ ต้องกดบันทึกเองถ้าแก้อย่างอื่นด้วย
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleMakePasswordLink(editingUserId, userEmail)}
+                    disabled={makingLinkFor === editingUserId}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl font-bold text-xs transition-colors disabled:opacity-50"
+                  >
+                    {makingLinkFor === editingUserId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                    <span>สร้างลิงก์ตั้งรหัสผ่าน</span>
+                  </button>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700">ชื่อ - นามสกุล *</label>
                 <input
@@ -4696,6 +4880,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ลิงก์ตั้งรหัสผ่าน */}
+      {pwLink && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm ${pwLinkClosing ? 'modal-backdrop-out' : 'welcome-backdrop'}`}
+        >
+          <div
+            className={`bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative space-y-4 ${pwLinkClosing ? 'modal-card-out' : 'welcome-card'}`}
+          >
+            <button onClick={closePwLink} className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700" aria-label="ปิด">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-hx-932d16" />
+              <span>ลิงก์ตั้งรหัสผ่าน</span>
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              คัดลอกลิงก์นี้ส่งให้ <span className="font-mono font-bold text-slate-800">{pwLink.email}</span> ทาง LINE หรืออีเมล
+              ลิงก์ใช้ได้ครั้งเดียว หมดอายุ {new Date(pwLink.expiresAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}{' '}
+              ถ้าสร้างลิงก์ใหม่ ลิงก์เดิมจะใช้ไม่ได้ทันที
+            </p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={pwLink.url}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="ลิงก์ตั้งรหัสผ่าน"
+                className="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await copyText(pwLink.url)) {
+                    setPwLinkCopied(true);
+                    window.setTimeout(() => setPwLinkCopied(false), 2000);
+                  } else {
+                    showToast('error', 'คัดลอกไม่สำเร็จ', 'เบราว์เซอร์ไม่อนุญาตให้คัดลอก กรุณาลากคลุมลิงก์แล้วคัดลอกเอง');
+                  }
+                }}
+                className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-hx-932d16 hover:bg-hx-7a2411 text-white text-xs font-bold shadow transition-colors"
+              >
+                {pwLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <span>{pwLinkCopied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-700 font-bold">ลิงก์นี้แสดงครั้งเดียว ปิดหน้าต่างแล้วดูอีกไม่ได้ ต้องสร้างใหม่</p>
           </div>
         </div>
       )}

@@ -47,10 +47,16 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
 
   // ตรวจกับฐานข้อมูลทุกครั้ง: บัญชีที่ถูกลบ/เปลี่ยนสิทธิ์/ย้ายสถานศึกษา จะใช้บัตรผ่านเดิมต่อไม่ได้ (ใช้สิทธิ์ล่าสุดจากฐานข้อมูล)
   prisma.user
-    .findUnique({ where: { id: decoded.userId }, select: { id: true, email: true, role: true, institutionId: true } })
+    .findUnique({ where: { id: decoded.userId }, select: { id: true, email: true, role: true, institutionId: true, passwordChangedAt: true } })
     .then((account) => {
       if (!account) {
         res.status(401).json({ status: 'error', message: 'บัญชีนี้ไม่มีอยู่ในระบบแล้ว กรุณาเข้าสู่ระบบใหม่' });
+        return;
+      }
+      // เปลี่ยนรหัสผ่านแล้ว → บัตรผ่านที่ออกก่อนเปลี่ยนใช้ไม่ได้ (iat เป็นวินาทีปัดลง จึงเทียบระดับวินาที)
+      const iat = (decoded as any).iat as number | undefined;
+      if (account.passwordChangedAt && iat !== undefined && iat < Math.floor(account.passwordChangedAt.getTime() / 1000)) {
+        res.status(401).json({ status: 'error', message: 'รหัสผ่านของบัญชีนี้ถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบใหม่' });
         return;
       }
       req.user = { ...decoded, email: account.email, role: account.role, institutionId: account.institutionId };

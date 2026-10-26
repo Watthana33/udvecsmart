@@ -8,7 +8,7 @@ const NUMERIC_SETTING_KEYS = new Set(['current_academic_year', 'current_semester
 const IMAGE_SETTING_KEYS = new Set(['welcome_image', 'banner_image']);
 
 // คีย์ที่ไม่ใช่การตั้งค่าที่หน้าเว็บต้องใช้ผ่านเส้นทางนี้
-const HIDDEN_SETTING_KEYS = new Set(['visitor_count']);
+const HIDDEN_SETTING_KEYS = new Set(['visitor_count', 'oic_structure_prev']);
 
 /**
  * ดึงการตั้งค่าระบบสำหรับหน้าสาธารณะ
@@ -27,7 +27,7 @@ export async function getPublicSettings(_req: Request, res: Response): Promise<v
     // แปลงอาร์เรย์ให้อยู่ในรูป Object { key: value } เพื่อง่ายต่อการเรียกใช้ใน React
     const settingsMap: Record<string, any> = {};
     for (const item of settings) {
-      if (HIDDEN_SETTING_KEYS.has(item.key)) continue;
+      if (HIDDEN_SETTING_KEYS.has(item.key) || item.key.startsWith('fb_')) continue; // fb_* มี token ห้ามส่งสาธารณะ
 
       if (IMAGE_SETTING_KEYS.has(item.key)) {
         // ส่งแค่ว่ามีรูปไหม + เวอร์ชัน (ใช้ต่อท้าย URL รูปเพื่อให้ cache ใหม่เมื่อเปลี่ยนรูป)
@@ -147,14 +147,15 @@ export async function updateBanner(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * ตั้งรูปแบนเนอร์หัวเว็บแบบสไลด์ (เฉพาะ SUPER_ADMIN) — เพิ่มเองสูงสุด 4 รูป (แสดงต่อจากรูปเริ่มต้น เป็นรูปที่ 2-5); ส่ง [] = มีแต่รูปเริ่มต้น
- * PUT /api/settings/banners  Body: { images: string[] }  (ลิงก์รูปจากระบบอัปโหลด ไม่รับ data URL)
+ * ตั้งแบนเนอร์หัวเว็บ (เฉพาะ SUPER_ADMIN) — เก็บรูปที่อัปโหลดไว้ได้สูงสุด 4 รูป (รวมรูปเริ่มต้นเป็น 5 ช่อง)
+ * แต่แสดงจริงทีละ 1 รูป: selected = ลิงก์รูปที่เลือก (ต้องอยู่ในรายการ) หรือ '' = ใช้รูปเริ่มต้น
+ * PUT /api/settings/banners  Body: { images: string[], selected: string }
  */
 export async function updateBanners(req: Request, res: Response): Promise<void> {
   try {
-    const { images } = req.body;
+    const { images, selected } = req.body;
     if (!Array.isArray(images) || images.length > 4) {
-      res.status(400).json({ status: 'error', message: 'แบนเนอร์ที่เพิ่มเองต้องไม่เกิน 4 รูป (รูปที่ 1 เป็นรูปเริ่มต้น)' });
+      res.status(400).json({ status: 'error', message: 'เก็บรูปแบนเนอร์ที่เพิ่มเองได้ไม่เกิน 4 รูป (รูปที่ 1 เป็นรูปเริ่มต้น)' });
       return;
     }
     for (const img of images) {
@@ -164,16 +165,26 @@ export async function updateBanners(req: Request, res: Response): Promise<void> 
         return;
       }
     }
+    const sel = typeof selected === 'string' ? selected : '';
+    if (sel !== '' && !images.includes(sel)) {
+      res.status(400).json({ status: 'error', message: 'รูปที่เลือกใช้ต้องเป็นรูปที่อยู่ในรายการ' });
+      return;
+    }
     await prisma.$transaction([
       prisma.siteSetting.upsert({
         where: { key: 'banner_images' },
         update: { value: JSON.stringify(images) },
-        create: { key: 'banner_images', value: JSON.stringify(images), description: 'รูปแบนเนอร์หัวเว็บแบบสไลด์ (JSON ไม่เกิน 4 รูป ต่อจากรูปเริ่มต้น)' },
+        create: { key: 'banner_images', value: JSON.stringify(images), description: 'รูปแบนเนอร์ที่อัปโหลดไว้ (JSON ไม่เกิน 4 รูป)' },
+      }),
+      prisma.siteSetting.upsert({
+        where: { key: 'banner_selected' },
+        update: { value: sel },
+        create: { key: 'banner_selected', value: sel, description: 'รูปแบนเนอร์ที่ใช้แสดง (ว่าง = รูปเริ่มต้น)' },
       }),
       // เลิกใช้รูปเดี่ยวแบบเดิม เพื่อไม่ให้ค้างทับรายการใหม่
       prisma.siteSetting.updateMany({ where: { key: 'banner_image' }, data: { value: '' } }),
     ]);
-    res.json({ status: 'success', message: images.length === 0 ? 'เหลือเฉพาะแบนเนอร์เริ่มต้นแล้ว' : `บันทึกแบนเนอร์เพิ่มเติม ${images.length} รูปเรียบร้อยแล้ว` });
+    res.json({ status: 'success', message: sel === '' ? 'ใช้แบนเนอร์เริ่มต้นแล้ว' : 'เปลี่ยนแบนเนอร์เรียบร้อยแล้ว' });
   } catch (error: any) {
     console.error('updateBanners error:', error);
     res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกแบนเนอร์ได้' });
@@ -588,7 +599,7 @@ export async function setCurrentAcademicPeriod(req: Request, res: Response): Pro
  * PUT /api/settings/appearance
  * ส่งมาเฉพาะ field ที่ต้องการแก้ได้ (field ที่ไม่ส่งจะไม่ถูกแตะ)
  */
-const SITE_THEMES = ['normal', 'mono', 'gray'];
+const SITE_THEMES = ['normal', 'province', 'mono', 'gray'];
 const WELCOME_MODES = ['fullpage', 'modal'];
 
 export async function updateAppearanceSettings(req: Request, res: Response): Promise<void> {
@@ -611,7 +622,7 @@ export async function updateAppearanceSettings(req: Request, res: Response): Pro
     };
 
     if (siteTheme !== undefined && !SITE_THEMES.includes(siteTheme)) {
-      bad('ธีมไม่ถูกต้อง (ต้องเป็น normal, mono หรือ gray)');
+      bad('ธีมไม่ถูกต้อง (ต้องเป็น normal, province, mono หรือ gray)');
       return;
     }
     if (welcomeMode !== undefined && !WELCOME_MODES.includes(welcomeMode)) {
@@ -644,7 +655,7 @@ export async function updateAppearanceSettings(req: Request, res: Response): Pro
     }
 
     const entries: Array<[string, string, string]> = [];
-    if (siteTheme !== undefined) entries.push(['site_theme', siteTheme, 'ธีมสีเว็บไซต์ (normal = ปกติ, mono = ขาวดำ, gray = เทา)']);
+    if (siteTheme !== undefined) entries.push(['site_theme', siteTheme, 'ธีมสีเว็บไซต์ (normal = สีสอศ., province = สีจังหวัด, mono = ขาวดำ, gray = เทา)']);
     if (mourningRibbon !== undefined) entries.push(['mourning_ribbon', String(mourningRibbon), 'แสดงริบบิ้นไว้อาลัยมุมขวาบน']);
     if (welcomeEnabled !== undefined) entries.push(['welcome_enabled', String(welcomeEnabled), 'เปิดหน้าข่าวสารก่อนเข้าเว็บไซต์']);
     if (welcomeMode !== undefined) entries.push(['welcome_mode', welcomeMode, 'รูปแบบหน้าข่าวสาร (fullpage = เต็มหน้า, modal = การ์ดบังหน้าจอ)']);
@@ -808,5 +819,73 @@ export async function setVisitorCount(req: Request, res: Response): Promise<void
   } catch (error: any) {
     console.error('setVisitorCount error:', error);
     res.status(500).json({ status: 'error', message: 'ไม่สามารถตั้งค่ายอดผู้เข้าชมได้' });
+  }
+}
+
+
+/**
+ * ตั้งการ์ด "ข้อมูลที่สถานศึกษาส่งให้ สอจ." ในหน้าโครงสร้าง สอจ. (ไม่ต้องล็อกอิน; เก็บฉบับก่อนหน้าไว้ที่คีย์ oic_structure_prev)
+ * PUT /api/settings/oic-structure
+ * Body: { cards: [{ title: string, lines: string[], children?: [{ title: string, lines: string[] }] }] }
+ */
+type OicSub = { title: string; lines: string[] };
+
+function cleanOicCard(c: any): { card?: OicSub; error?: string } {
+  const title = typeof c?.title === 'string' ? c.title.trim() : '';
+  if (title === '' || title.length > 60) return { error: 'ชื่อการ์ดต้องไม่ว่างและยาวไม่เกิน 60 ตัวอักษร' };
+  if (!Array.isArray(c.lines) || c.lines.length > 60 || c.lines.some((l: unknown) => typeof l !== 'string' || l.length > 120)) {
+    return { error: `การ์ด "${title}": รายการต้องไม่เกิน 60 บรรทัด และบรรทัดละไม่เกิน 120 ตัวอักษร` };
+  }
+  return { card: { title, lines: c.lines.map((l: string) => l.trim()).filter((l: string) => l !== '') } };
+}
+
+export async function updateOicStructure(req: Request, res: Response): Promise<void> {
+  try {
+    const cards = req.body?.cards;
+    if (!Array.isArray(cards) || cards.length === 0 || cards.length > 8) {
+      res.status(400).json({ status: 'error', message: 'ต้องมีการ์ด 1-8 ใบ' });
+      return;
+    }
+    const clean: Array<OicSub & { children: OicSub[] }> = [];
+    for (const c of cards) {
+      const main = cleanOicCard(c);
+      if (!main.card) {
+        res.status(400).json({ status: 'error', message: main.error });
+        return;
+      }
+      const rawChildren = c.children === undefined ? [] : c.children;
+      if (!Array.isArray(rawChildren) || rawChildren.length > 6) {
+        res.status(400).json({ status: 'error', message: `การ์ด "${main.card.title}": การ์ดย่อยต้องไม่เกิน 6 ใบ` });
+        return;
+      }
+      const children: OicSub[] = [];
+      for (const ch of rawChildren) {
+        const sub = cleanOicCard(ch);
+        if (!sub.card) {
+          res.status(400).json({ status: 'error', message: sub.error });
+          return;
+        }
+        children.push(sub.card);
+      }
+      clean.push({ ...main.card, children });
+    }
+    const value = JSON.stringify({ cards: clean });
+    const previous = await prisma.siteSetting.findUnique({ where: { key: 'oic_structure' } });
+    if (previous) {
+      await prisma.siteSetting.upsert({
+        where: { key: 'oic_structure_prev' },
+        update: { value: previous.value },
+        create: { key: 'oic_structure_prev', value: previous.value, description: 'สำรองการ์ดหน้าโครงสร้าง สอจ. ฉบับก่อนการแก้ล่าสุด' },
+      });
+    }
+    await prisma.siteSetting.upsert({
+      where: { key: 'oic_structure' },
+      update: { value },
+      create: { key: 'oic_structure', value, description: 'หน้าโครงสร้าง สอจ.: การ์ดข้อมูลที่สถานศึกษาส่งให้ สอจ.' },
+    });
+    res.json({ status: 'success', message: 'บันทึกการ์ดเรียบร้อยแล้ว' });
+  } catch (error: any) {
+    console.error('updateOicStructure error:', error);
+    res.status(500).json({ status: 'error', message: 'ไม่สามารถบันทึกการ์ดได้' });
   }
 }

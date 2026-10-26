@@ -53,6 +53,36 @@ const HX = [
 const hxColors = {};
 for (const hex of HX) hxColors[hex] = themed(`hx-${hex}`, `#${hex}`);
 
+/**
+ * ธีม "สีจังหวัด" (html.theme-province): ดึงสีจากแบนเนอร์รูปที่ 2 — ส้มพระอาทิตย์ตก/ทอง/กรมท่าของเสื้อนักเรียน
+ * สลับเฉพาะกลุ่มสีแดงเลือดหมู (สีหลักของ สอศ.) และน้ำเงินเข้ม ที่เหลือคงเดิม
+ * (ค่าสีหลักต้องตรงกับ frontend/src/utils/themeColors.ts ที่ใช้กับกราฟ canvas)
+ */
+const PROVINCE = {
+  primary: '#c2410c',      // ส้มเข้ม (ตัวหนังสือสีขาวบนพื้นนี้อ่านชัด)
+  primaryDark: '#9a3412',  // ส้มน้ำตาล (hover / ส่วนเข้ม)
+  primaryDeep: '#7c2d12',  // น้ำตาลเข้มมาก
+  primaryLight: '#ea580c', // ส้มสว่างเหมือนแถบส้มในแบนเนอร์
+  primaryBg: '#fff7ed',    // พื้นส้มจาง
+  navy: '#1b2a4e',         // กรมท่าของเสื้อช่าง
+};
+const rgbVar = (hex) => hexToRgb(hex).join(' ');
+const provinceVars = {
+  '--c-hx-932d16': rgbVar(PROVINCE.primary),
+  '--c-hx-7a2411': rgbVar(PROVINCE.primaryDark),
+  '--c-hx-742210': rgbVar(PROVINCE.primaryDark),
+  '--c-hx-7d2511': rgbVar(PROVINCE.primaryDark),
+  '--c-hx-782310': rgbVar(PROVINCE.primaryDark),
+  '--c-hx-451206': rgbVar(PROVINCE.primaryDeep),
+  '--c-hx-b2391e': rgbVar(PROVINCE.primaryLight),
+  '--c-hx-fdf6f4': rgbVar(PROVINCE.primaryBg),
+  '--c-vec-primary': rgbVar(PROVINCE.primary),
+  '--c-vec-primaryDark': rgbVar(PROVINCE.primaryDark),
+  '--c-vec-primaryLight': rgbVar(PROVINCE.primaryLight),
+  '--c-vec-primaryBg': rgbVar(PROVINCE.primaryBg),
+  '--c-vec-blue': rgbVar(PROVINCE.navy),
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -76,7 +106,7 @@ export default {
   },
   plugins: [
     plugin(({ addBase }) => {
-      addBase({ 'html.theme-mono': monoVars });
+      addBase({ 'html.theme-mono': monoVars, 'html.theme-province': provinceVars });
     }),
   ],
 }

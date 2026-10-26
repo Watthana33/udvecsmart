@@ -11,7 +11,8 @@ interface AppearanceSettingsProps {
 }
 
 const THEME_OPTIONS: { value: SiteTheme; label: string; desc: string; swatch: string[] }[] = [
-  { value: 'normal', label: 'ปกติ', desc: 'สีตามแบบเดิมของเว็บไซต์', swatch: ['#932d16', '#f59e0b', '#1e3a8a'] },
+  { value: 'normal', label: 'สีสอศ.', desc: 'สีแดงตามตราสอศ. (สีเดิมของเว็บไซต์)', swatch: ['#932d16', '#f59e0b', '#1e3a8a'] },
+  { value: 'province', label: 'สีจังหวัด', desc: 'ส้ม-ทองและกรมท่า ดึงจากแบนเนอร์รูปที่ 2', swatch: ['#c2410c', '#f59e0b', '#1b2a4e'] },
   { value: 'mono', label: 'ขาวดำ', desc: 'ส่วนติดต่อผู้ใช้เป็นขาว-ดำ-เทา แต่รูปภาพและกราฟยังเป็นสีปกติ', swatch: ['#111111', '#777777', '#ffffff'] },
   { value: 'gray', label: 'สีเทาทั้งเว็บ', desc: 'พื้นหลังและทั้งเว็บเป็นเทาหม่น ดูนุ่มและเศร้ากว่า', swatch: ['#2a2a2a', '#7d7d7d', '#c1c1c1'] },
 ];
@@ -23,7 +24,11 @@ const MODE_OPTIONS: { value: WelcomeMode; label: string; desc: string }[] = [
 
 export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast, onChanged }) => {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingTheme, setSavingTheme] = useState(false);
+  const [savingWelcome, setSavingWelcome] = useState(false);
+  // ค่าที่บันทึกแล้วของแต่ละการ์ด (ไว้เทียบว่าแก้อะไรค้างอยู่ไหม)
+  const [themeBaseline, setThemeBaseline] = useState('');
+  const [welcomeBaseline, setWelcomeBaseline] = useState('');
   const [previewing, setPreviewing] = useState(false);
 
   const [siteTheme, setSiteTheme] = useState<SiteTheme>('normal');
@@ -43,6 +48,11 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
   const [welcomeButtonText, setWelcomeButtonText] = useState('เข้าสู่เว็บไซต์');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const themeKey = JSON.stringify([siteTheme, mourningRibbon]);
+  const welcomeKey = JSON.stringify([welcomeEnabled, welcomeMode, welcomeBadgeEnabled, welcomeBadgeText, welcomeTitle, welcomeContent, newImage, welcomeButtonText]);
+  const themeDirty = themeKey !== themeBaseline;
+  const welcomeDirty = welcomeKey !== welcomeBaseline;
+
   useEffect(() => {
     getSettings()
       .then((s) => {
@@ -56,6 +66,20 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
         setWelcomeContent(String(s.welcome_content ?? ''));
         setServerImage(s.welcome_has_image ? `${API_BASE_URL}/settings/welcome-image?v=${s.welcome_image_version ?? ''}` : '');
         setWelcomeButtonText(String(s.welcome_button_text || 'เข้าสู่เว็บไซต์'));
+        // ค่าตั้งต้นของแต่ละการ์ด (รูปแบบเดียวกับ themeKey / welcomeKey ด้านบน)
+        setThemeBaseline(JSON.stringify([s.site_theme || 'normal', !!s.mourning_ribbon]));
+        setWelcomeBaseline(
+          JSON.stringify([
+            !!s.welcome_enabled,
+            s.welcome_mode === 'modal' ? 'modal' : 'fullpage',
+            s.welcome_badge_enabled !== false,
+            s.welcome_badge_text === undefined ? DEFAULT_WELCOME_BADGE : String(s.welcome_badge_text),
+            String(s.welcome_title ?? ''),
+            String(s.welcome_content ?? ''),
+            null,
+            String(s.welcome_button_text || 'เข้าสู่เว็บไซต์'),
+          ])
+        );
       })
       .catch((err) => onToast('error', 'โหลดการตั้งค่าไม่สำเร็จ', err.response?.data?.message || err.message))
       .finally(() => setLoading(false));
@@ -78,16 +102,28 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveTheme = async () => {
+    try {
+      setSavingTheme(true);
+      await updateAppearanceSettings({ siteTheme, mourningRibbon });
+      onToast('success', 'บันทึกธีมสำเร็จ', 'ผู้เข้าชมจะเห็นสีใหม่เมื่อเปิดหรือรีเฟรชหน้าเว็บ');
+      setThemeBaseline(themeKey);
+      onChanged?.();
+    } catch (err: any) {
+      onToast('error', 'บันทึกธีมไม่สำเร็จ', err.response?.data?.message || err.message);
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
+  const handleSaveWelcome = async () => {
     if (welcomeEnabled && !welcomeTitle.trim() && !welcomeContent.trim() && !welcomeImage) {
       onToast('error', 'ยังไม่มีเนื้อหา', 'เปิดหน้าข่าวสารแล้ว ต้องมีอย่างน้อยหัวข้อ เนื้อหา หรือรูปภาพ 1 อย่าง');
       return;
     }
     try {
-      setSaving(true);
+      setSavingWelcome(true);
       await updateAppearanceSettings({
-        siteTheme,
-        mourningRibbon,
         welcomeEnabled,
         welcomeMode,
         welcomeBadgeEnabled,
@@ -98,16 +134,18 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
         ...(newImage !== null ? { welcomeImage: newImage } : {}),
         welcomeButtonText: welcomeButtonText.trim() || 'เข้าสู่เว็บไซต์',
       });
-      onToast('success', 'บันทึกสำเร็จ!', 'ผู้เข้าชมจะเห็นการเปลี่ยนแปลงเมื่อเปิดหรือรีเฟรชหน้าเว็บ');
+      onToast('success', 'บันทึกหน้าข่าวสารสำเร็จ', 'ผู้เข้าชมจะเห็นการเปลี่ยนแปลงเมื่อเปิดหรือรีเฟรชหน้าเว็บ');
       if (newImage !== null) {
         setServerImage(newImage);
         setNewImage(null);
       }
+      // รูปที่เพิ่งบันทึกกลายเป็นรูปปัจจุบัน (newImage กลับเป็น null)
+      setWelcomeBaseline(JSON.stringify([welcomeEnabled, welcomeMode, welcomeBadgeEnabled, welcomeBadgeText, welcomeTitle, welcomeContent, null, welcomeButtonText]));
       onChanged?.();
     } catch (err: any) {
-      onToast('error', 'บันทึกไม่สำเร็จ', err.response?.data?.message || err.message);
+      onToast('error', 'บันทึกหน้าข่าวสารไม่สำเร็จ', err.response?.data?.message || err.message);
     } finally {
-      setSaving(false);
+      setSavingWelcome(false);
     }
   };
 
@@ -172,6 +210,16 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
             className="w-5 h-5 text-hx-932d16 rounded border-slate-300 focus:ring-hx-932d16"
           />
         </label>
+
+        <button
+          type="button"
+          onClick={handleSaveTheme}
+          disabled={savingTheme || !themeDirty}
+          className="w-full py-3 bg-hx-932d16 hover:bg-hx-7a2411 text-white font-bold text-sm rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+        >
+          {savingTheme ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span>{savingTheme ? 'กำลังบันทึก...' : themeDirty ? 'บันทึกธีมสี' : 'ยังไม่มีการเปลี่ยนแปลง'}</span>
+        </button>
       </div>
 
       {/* หน้าข่าวสารก่อนเข้าเว็บ */}
@@ -348,17 +396,17 @@ export const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ onToast,
           <Eye className="w-4 h-4" />
           <span>ดูตัวอย่างหน้าข่าวสาร</span>
         </button>
-      </div>
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full py-3 bg-hx-932d16 hover:bg-hx-7a2411 text-white font-bold text-sm rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-      >
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-        <span>{saving ? 'กำลังบันทึก...' : 'บันทึกธีมและหน้าข่าวสาร'}</span>
-      </button>
+        <button
+          type="button"
+          onClick={handleSaveWelcome}
+          disabled={savingWelcome || !welcomeDirty}
+          className="w-full py-3 bg-hx-932d16 hover:bg-hx-7a2411 text-white font-bold text-sm rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+        >
+          {savingWelcome ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span>{savingWelcome ? 'กำลังบันทึก...' : welcomeDirty ? 'บันทึกหน้าข่าวสาร' : 'ยังไม่มีการเปลี่ยนแปลง'}</span>
+        </button>
+      </div>
 
       {previewing && (
         <WelcomeGate

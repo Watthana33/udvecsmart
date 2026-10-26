@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, Building2, Eye, Save, Loader2, ImagePlus, RotateCcw, X, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Image as ImageIcon, Building2, Eye, Save, Loader2, ImagePlus, RotateCcw, X, Check } from 'lucide-react';
 import {
   uploadImage,
   getSettings,
@@ -8,7 +8,7 @@ import {
   updateBannerImages,
   updateContactInfo,
 } from '../../services/api';
-import { MAX_BANNERS, resolveBanners } from '../../utils/bannerImages';
+import { MAX_BANNERS, resolveBanner } from '../../utils/bannerImages';
 import { DEFAULT_CONTACT, resolveContact } from '../../utils/siteContact';
 
 interface SiteContentSettingsProps {
@@ -24,8 +24,9 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
   const [loading, setLoading] = useState(true);
 
   // แบนเนอร์ (สไลด์ไม่เกิน 5 รูป)
-  const [serverBanners, setServerBanners] = useState<string[]>([]); // รายการที่บันทึกแล้ว
-  const [banners, setBanners] = useState<string[]>([]); // รายการที่กำลังแก้ (ยังไม่บันทึก)
+  const [serverBanner, setServerBanner] = useState<{ images: string[]; selected: string }>({ images: [], selected: '' }); // ที่บันทึกแล้ว
+  const [banners, setBanners] = useState<string[]>([]); // รูปที่อัปโหลดไว้ (กำลังแก้ ยังไม่บันทึก)
+  const [selectedBanner, setSelectedBanner] = useState(''); // รูปที่เลือกใช้แสดง ('' = รูปเริ่มต้น)
   const [savingBanner, setSavingBanner] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -37,25 +38,32 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
   const [hours, setHours] = useState(DEFAULT_CONTACT.hours);
   const [facebook, setFacebook] = useState(DEFAULT_CONTACT.facebook);
   const [savingContact, setSavingContact] = useState(false);
+  const [contactBaseline, setContactBaseline] = useState(''); // ค่าที่บันทึกแล้ว ไว้เทียบว่าแก้อะไรค้างอยู่ไหม
+  const contactKey = JSON.stringify([address, phone, email, hours, facebook]);
+  const contactDirty = contactKey !== contactBaseline;
 
   // ยอดผู้เข้าชม
   const [visitorCount, setVisitorCountState] = useState<number | null>(null);
   const [visitorInput, setVisitorInput] = useState('');
   const [savingVisitor, setSavingVisitor] = useState(false);
+  // ช่องตัวเลขต่างจากยอดปัจจุบัน = มีการแก้ค้างอยู่
+  const visitorDirty = visitorCount !== null && visitorInput.replace(/,/g, '').trim() !== String(visitorCount);
   const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     Promise.all([getSettings(), getVisitorCount().catch(() => null)])
       .then(([s, count]) => {
-        const bl = resolveBanners(s);
-        setServerBanners(bl);
-        setBanners(bl);
+        const bl = resolveBanner(s);
+        setServerBanner(bl);
+        setBanners(bl.images);
+        setSelectedBanner(bl.selected);
         const c = resolveContact(s);
         setAddress(c.address);
         setPhone(c.phone);
         setEmail(c.email);
         setHours(c.hours);
         setFacebook(c.facebook);
+        setContactBaseline(JSON.stringify([c.address, c.phone, c.email, c.hours, c.facebook]));
         if (typeof count === 'number') {
           setVisitorCountState(count);
           setVisitorInput(String(count));
@@ -66,7 +74,7 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const bannerDirty = JSON.stringify(banners) !== JSON.stringify(serverBanners);
+  const bannerDirty = JSON.stringify(banners) !== JSON.stringify(serverBanner.images) || selectedBanner !== serverBanner.selected;
 
   const handlePickBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -90,21 +98,17 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
     }
   };
 
-  const moveBanner = (i: number, d: -1 | 1) =>
-    setBanners((prev) => {
-      const j = i + d;
-      if (j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+  const removeBanner = (url: string) => {
+    setBanners((prev) => prev.filter((u) => u !== url));
+    if (selectedBanner === url) setSelectedBanner(''); // ลบรูปที่ใช้อยู่ → กลับไปใช้รูปเริ่มต้น
+  };
 
   const handleSaveBanner = async () => {
     try {
       setSavingBanner(true);
-      await updateBannerImages(banners);
-      onToast('success', 'บันทึกแบนเนอร์สำเร็จ', banners.length === 0 ? 'กลับไปใช้แบนเนอร์เริ่มต้นแล้ว' : `บันทึก ${banners.length} รูป ทุกคนจะเห็นเมื่อเปิดหรือรีเฟรชหน้าเว็บ`);
-      setServerBanners(banners);
+      await updateBannerImages(banners, selectedBanner);
+      onToast('success', 'บันทึกแบนเนอร์สำเร็จ', selectedBanner === '' ? 'ใช้แบนเนอร์เริ่มต้น ทุกคนจะเห็นเมื่อเปิดหรือรีเฟรชหน้าเว็บ' : 'ใช้รูปที่เลือกเป็นแบนเนอร์ ทุกคนจะเห็นเมื่อเปิดหรือรีเฟรชหน้าเว็บ');
+      setServerBanner({ images: banners, selected: selectedBanner });
       onChanged?.();
     } catch (err: any) {
       onToast('error', 'บันทึกแบนเนอร์ไม่สำเร็จ', err.response?.data?.message || err.message);
@@ -125,6 +129,7 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
         contactFacebook: facebook,
       });
       onToast('success', 'บันทึกข้อมูลติดต่อสำเร็จ', 'ข้อมูลใน Footer และหน้าติดต่อเราเปลี่ยนตามแล้ว');
+      setContactBaseline(contactKey);
       onChanged?.();
     } catch (err: any) {
       onToast('error', 'บันทึกข้อมูลติดต่อไม่สำเร็จ', err.response?.data?.message || err.message);
@@ -195,42 +200,53 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
           <div>
             <h3 className="text-base font-black text-slate-900">แบนเนอร์ส่วนหัวเว็บ (Header Banner)</h3>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              รูปที่ 1 เป็นรูปเริ่มต้นของระบบเสมอ เพิ่มรูปของเราได้อีกสูงสุด 4 รูป (รูปที่ 2-5) ระบบสลับแสดงอัตโนมัติทุก 6 วินาที ขนาดรูปที่แนะนำ 2129 x 739 พิกเซล (รูปอัตราส่วนอื่นจะถูกตัดขอบให้พอดี) ผู้เข้าชมทุกคนเห็นชุดเดียวกัน ระบบเก็บไฟล์ต้นฉบับไว้ให้ (ไม่เกิน 50MB ต่อรูป)
+อัปโหลดรูปเก็บไว้ได้อีก 4 รูป (รูปที่ 1 เป็นรูปเริ่มต้นของระบบ รวม 5 ช่อง) แล้วเลือกใช้แสดงได้ทีละ 1 รูป ขนาดรูปที่แนะนำ 2129 x 739 พิกเซล (รูปอัตราส่วนอื่นจะถูกตัดขอบให้พอดี) ผู้เข้าชมทุกคนเห็นรูปเดียวกัน ระบบเก็บไฟล์ต้นฉบับไว้ให้ (ไม่เกิน 50MB ต่อรูป)
             </p>
           </div>
         </div>
 
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <li className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-            <div className="bg-slate-900" style={{ aspectRatio: '2129 / 739' }}>
-              <img src={DEFAULT_BANNER} alt="แบนเนอร์เริ่มต้น" className="w-full h-full object-cover block" />
-            </div>
-            <div className="px-3 py-2 text-xs font-bold text-slate-600">รูปที่ 1 · รูปเริ่มต้นของระบบ (ลบไม่ได้)</div>
-          </li>
-          {banners.map((url, i) => (
-            <li key={url + i} className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-              <div className="bg-slate-900" style={{ aspectRatio: '2129 / 739' }}>
-                <img src={url} alt={`แบนเนอร์รูปที่ ${i + 2}`} className="w-full h-full object-cover block" />
-              </div>
-              <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-xs font-bold text-slate-600">รูปที่ {i + 2}</span>
-                <div className="flex gap-1">
-                  <button type="button" aria-label="เลื่อนไปก่อน" disabled={i === 0} onClick={() => moveBanner(i, -1)} className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30">
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button type="button" aria-label="เลื่อนไปหลัง" disabled={i === banners.length - 1} onClick={() => moveBanner(i, 1)} className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30">
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button type="button" aria-label="ลบรูปนี้" onClick={() => setBanners((prev) => prev.filter((_, k) => k !== i))} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+          {[{ url: '', label: 'รูปที่ 1 · รูปเริ่มต้นของระบบ' }, ...banners.map((url, i) => ({ url, label: `รูปที่ ${i + 2}` }))].map((b) => {
+            const active = selectedBanner === b.url;
+            return (
+              <li
+                key={b.url || 'default'}
+                className={`rounded-2xl overflow-hidden bg-white border-2 transition-colors ${active ? 'border-hx-932d16' : 'border-slate-200'}`}
+              >
+                <div className="bg-slate-900 relative" style={{ aspectRatio: '2129 / 739' }}>
+                  <img src={b.url || DEFAULT_BANNER} alt={b.label} className="w-full h-full object-cover block" />
+                  {active && (
+                    <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-hx-932d16 text-white text-[11px] font-bold shadow">
+                      <Check className="w-3 h-3" />
+                      กำลังใช้แสดง
+                    </span>
+                  )}
                 </div>
-              </div>
-            </li>
-          ))}
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-xs font-bold text-slate-600">{b.label}</span>
+                  <div className="flex gap-1.5">
+                    {!active && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBanner(b.url)}
+                        className="px-3 py-1.5 rounded-lg border border-hx-932d16 text-hx-932d16 hover:bg-hx-932d16/5 text-xs font-bold transition-colors"
+                      >
+                        ใช้รูปนี้
+                      </button>
+                    )}
+                    {b.url !== '' && (
+                      <button type="button" aria-label="ลบรูปนี้" onClick={() => removeBanner(b.url)} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <p className="text-xs text-slate-500">
-          เพิ่มเองแล้ว {banners.length}/{MAX_BANNERS} รูป (รวมรูปเริ่มต้นเป็น {banners.length + 1}/5)
+          อัปโหลดแล้ว {banners.length}/{MAX_BANNERS} รูป (รวมรูปเริ่มต้นเป็น {banners.length + 1}/5) · แสดงทีละ 1 รูป
         </p>
         {bannerDirty && (
           <p className="text-xs font-bold text-amber-700">แก้ไขแล้ว — ยังไม่ได้บันทึก กดปุ่ม "บันทึกแบนเนอร์" ด้านล่าง</p>
@@ -246,15 +262,6 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
           >
             {uploadingBanner ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
             <span>{uploadingBanner ? 'กำลังอัปโหลด...' : 'เพิ่มรูปแบนเนอร์'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setBanners([])}
-            disabled={banners.length === 0}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-40"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>ลบรูปที่เพิ่มทั้งหมด</span>
           </button>
           <button
             type="button"
@@ -298,14 +305,14 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
             <input id="contact-hours" type="text" maxLength={120} value={hours} onChange={(e) => setHours(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label htmlFor="contact-facebook" className="block text-xs font-bold text-slate-700 mb-1.5">ลิงก์เฟซบุ๊กแฟนเพจ (ไม่บังคับ)</label>
+            <label htmlFor="contact-facebook" className="block text-xs font-bold text-slate-700 mb-1.5">ลิงก์เฟซบุ๊กแฟนเพจ (ไม่บังคับ — ถ้าใส่ จะแสดงโพสต์ล่าสุดที่หน้าแรกใต้สไลด์ข่าวด้วย)</label>
             <input id="contact-facebook" type="url" maxLength={300} value={facebook} onChange={(e) => setFacebook(e.target.value)} className={inputCls} />
           </div>
         </div>
 
         <button
           type="submit"
-          disabled={savingContact}
+          disabled={savingContact || !contactDirty}
           className="px-5 py-2.5 rounded-xl bg-hx-932d16 hover:bg-hx-7a2411 text-white text-xs font-bold shadow transition-colors flex items-center gap-2 disabled:opacity-40"
         >
           {savingContact ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -343,7 +350,7 @@ export const SiteContentSettings: React.FC<SiteContentSettingsProps> = ({ onToas
           <button
             type="button"
             onClick={handleSaveVisitor}
-            disabled={savingVisitor}
+            disabled={savingVisitor || !visitorDirty}
             className="px-5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-40"
           >
             {savingVisitor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

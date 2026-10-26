@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
-import { resolveBanners } from './utils/bannerImages';
+import { resolveBanner } from './utils/bannerImages';
 import { BannerSection } from './components/dashboard/BannerSection';
 import { resolveContact } from './utils/siteContact';
 import { OverviewHero } from './components/dashboard/OverviewHero';
+import { FacebookFeed } from './components/dashboard/FacebookFeed';
 import { FilterBar } from './components/dashboard/FilterBar';
 import { StatCards } from './components/dashboard/StatCards';
 import { OverviewCharts } from './components/dashboard/OverviewCharts';
@@ -14,6 +15,7 @@ import { EmploymentHero } from './components/dashboard/EmploymentHero';
 import { DveCareerSection } from './components/dashboard/DveCareerSection';
 import { DveCareerHero } from './components/dashboard/DveCareerHero';
 import { ContactSection } from './components/dashboard/ContactSection';
+import { SiteFlowchart } from './components/dashboard/SiteFlowchart';
 import { AdminPortal } from './components/portal/AdminPortal';
 import { LoginModal } from './components/auth/LoginModal';
 import { WelcomeGate, resolveWelcomeBadge } from './components/appearance/WelcomeGate';
@@ -48,6 +50,7 @@ const TAB_PATHS: Record<string, string> = {
   employment: '/employment',
   institutions: '/institutions',
   contact: '/contact',
+  oic_structure: '/oic-structure',
   portal: '/portal',
 };
 
@@ -57,6 +60,7 @@ const TAB_TITLES: Record<string, string> = {
   employment: 'ภาวะการมีงานทำ',
   institutions: 'สถานศึกษาในสังกัด',
   contact: 'ติดต่อเรา',
+  oic_structure: 'สอจ.อุดรธานี ประกอบด้วยส่วนไหน',
   portal: 'ระบบจัดการข้อมูล',
 };
 
@@ -93,14 +97,15 @@ function markWelcomeSeen(version: string) {
 // ใส่/ถอดคลาสธีมที่ <html> (สไตล์อยู่ใน index.css)
 function applySiteTheme(theme: string | undefined) {
   const root = document.documentElement;
-  root.classList.remove('theme-mono', 'theme-gray');
-  if (theme === 'mono' || theme === 'gray') root.classList.add(`theme-${theme}`);
+  root.classList.remove('theme-mono', 'theme-gray', 'theme-province');
+  if (theme === 'mono' || theme === 'gray' || theme === 'province') root.classList.add(`theme-${theme}`);
 }
 
 export function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [tokenTick, setTokenTick] = useState(0); // บัตรผ่านถูกเปลี่ยนเป็นใบใหม่ → ตั้งเวลาหมดอายุใหม่
   const [activeTab, setActiveTabState] = useState<string>(() => pathToTab(window.location.pathname));
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -207,7 +212,9 @@ export function App() {
       setSessionExpired(true);
       setIsLoginOpen(true);
     };
+    const refreshed = () => setTokenTick((n) => n + 1);
     window.addEventListener('udpvecsmart:session-expired', expire);
+    window.addEventListener('udpvecsmart:token-refreshed', refreshed);
     let timer: number | undefined;
     if (user) {
       try {
@@ -219,9 +226,10 @@ export function App() {
     }
     return () => {
       window.removeEventListener('udpvecsmart:session-expired', expire);
+      window.removeEventListener('udpvecsmart:token-refreshed', refreshed);
       if (timer) window.clearTimeout(timer);
     };
-  }, [user]);
+  }, [user, tokenTick]);
 
   // เปิดลิงก์ /portal ตรง ๆ แต่ยังไม่ได้ล็อกอิน → กลับหน้าแรก
   useEffect(() => {
@@ -328,7 +336,7 @@ export function App() {
   const welcomeImage = siteSettings?.welcome_has_image
     ? `${API_BASE_URL}/settings/welcome-image?v=${siteSettings.welcome_image_version ?? ''}`
     : '';
-  const bannerSrcs = resolveBanners(siteSettings);
+  const bannerSrc = resolveBanner(siteSettings).selected || undefined;
   const contact = resolveContact(siteSettings);
   const showWelcome =
     settingsReady &&
@@ -356,7 +364,7 @@ export function App() {
       {/* 2. Main Content */}
       <main className="flex-grow">
         {/* Full-width Hero Banner with Auto-Fit & Super Admin Changer (Only for Super Admin) */}
-        <BannerSection srcs={bannerSrcs} />
+        <BannerSection src={bannerSrc} />
 
         {/* Anchor point for automatic smooth scrolling to tab content */}
         <div id="main-tab-content" className="scroll-mt-24" />
@@ -368,6 +376,9 @@ export function App() {
           <div className="space-y-6">
             {/* Headline & News side-by-side */}
             <OverviewHero newsList={newsList} loading={loadingNews} />
+
+            {/* โพสต์ล่าสุดจาก Facebook Page (แสดงเมื่อใส่ลิงก์เพจในข้อมูลติดต่อ) */}
+            <FacebookFeed pageUrl={contact.facebook} />
 
             {/* Horizontal Filter Bar across the page */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -461,6 +472,14 @@ export function App() {
         {/* Tab 4: ติดต่อเรา (Contact Us & Form) */}
         {activeTab === 'contact' && <ContactSection contact={contact} />}
 
+        {/* ผังโครงสร้าง สอจ.อุดรธานี */}
+        {activeTab === 'oic_structure' && (
+          <SiteFlowchart
+            savedCards={siteSettings?.oic_structure}
+            onSaved={handleSiteSettingsChange}
+          />
+        )}
+
         {/* Tab Portal: ระบบจัดการข้อมูล / ศูนย์ควบคุม สอจ. / บันทึกข้อมูลสถิติ */}
         {activeTab === 'portal' && user && (
           <AdminPortal
@@ -499,7 +518,7 @@ export function App() {
       {/* 5. Login Modal */}
       <LoginModal
         isOpen={isLoginOpen}
-        notice={sessionExpired ? 'เซสชันหมดอายุ (ล็อกอินอยู่ได้ 12 ชั่วโมง) กรุณาเข้าสู่ระบบอีกครั้ง' : undefined}
+        notice={sessionExpired ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : undefined}
         onClose={() => { setIsLoginOpen(false); setSessionExpired(false); }}
         onLoginSuccess={(loggedUser) => {
           setSessionExpired(false);

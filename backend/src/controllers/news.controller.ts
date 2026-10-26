@@ -261,9 +261,15 @@ export async function updateNews(req: AuthRequest, res: Response): Promise<void>
 export async function deleteNews(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    await prisma.news.delete({
-      where: { id },
-    });
+    // ข่าวที่ดึงจาก Facebook: ซ่อนแทนลบ ไม่งั้นรอบดึงถัดไปจะดึงกลับมาอีก
+    const existing = await prisma.news.findUnique({ where: { id }, select: { fbPostId: true } });
+    if (existing?.fbPostId) {
+      await prisma.news.update({ where: { id }, data: { isPublished: false } });
+    } else {
+      await prisma.news.delete({
+        where: { id },
+      });
+    }
 
     res.json({
       status: 'success',

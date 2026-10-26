@@ -11,6 +11,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { StatsOverview, InstitutionStatItem } from '../../types';
+import { brandColor } from '../../utils/themeColors';
 // import { BarChart3, PieChart, TrendingUp, Users } from 'lucide-react';
 
 // Custom plugin to render exact numbers on top of chart bars when enabled
@@ -32,7 +33,7 @@ const customDataLabelsPlugin = {
         const val = dataset.data[index];
         if (val !== undefined && val !== null && val > 0) {
           const formatted = Number(val).toLocaleString();
-          ctx.fillStyle = dataset.backgroundColor === '#fbbf24' ? '#ad7f09' : datasetIndex === 0 ? '#932d16' : '#ad7f09';
+          ctx.fillStyle = dataset.backgroundColor === '#fbbf24' ? '#ad7f09' : datasetIndex === 0 ? brandColor() : '#ad7f09';
           ctx.fillText(formatted, element.x, element.y - 4);
         }
       });
@@ -104,7 +105,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               stats.students.byGrade.highVocCert2,
               stats.students.byGrade.bachelor,
             ],
-            backgroundColor: selectedIsPrivate ? '#fbbf24' : '#932d16',
+            backgroundColor: selectedIsPrivate ? '#fbbf24' : brandColor(),
             borderRadius: 6,
           },
         ],
@@ -122,7 +123,7 @@ export const OverviewCharts: React.FC<OverviewChartsProps> = ({
               pubGrades.highVocCert2,
               pubGrades.bachelor,
             ],
-            backgroundColor: '#932d16',
+            backgroundColor: brandColor(),
             borderRadius: 6,
           },
           {

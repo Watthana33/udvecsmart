@@ -30,6 +30,7 @@ import {
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { getDveAndCareerSummary } from '../../services/api';
 import { DveAndCareerSummary } from '../../types';
+import { brandColor } from '../../utils/themeColors';
 
 ChartJS.register(
   CategoryScale,
@@ -48,8 +49,8 @@ interface DveCareerSectionProps {
 }
 
 // Color palette for departments in the DVE chart
-const DEPARTMENT_COLORS = [
-  '#932d16', // VEC Red
+const departmentColors = () => [
+  brandColor(), // สีหลักตามธีม (สอศ. = แดง, สีจังหวัด = ส้ม)
   '#2563eb', // Royal Blue
   '#059669', // Emerald
   '#d97706', // Amber
@@ -137,7 +138,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
         {
           label: 'จำนวนนักเรียนทวิภาคี (คน)',
           data: topDepartments.map((d) => d.totalStudents),
-          backgroundColor: topDepartments.map((_, i) => DEPARTMENT_COLORS[i % DEPARTMENT_COLORS.length]),
+          backgroundColor: (() => { const palette = departmentColors(); return topDepartments.map((_, i) => palette[i % palette.length]); })(),
           borderRadius: 6,
           borderSkipped: false,
           maxBarThickness: 24,
@@ -305,7 +306,7 @@ export const DveCareerSection: React.FC<DveCareerSectionProps> = ({
       datasets: [
         {
           data: [edu.doctor.total, edu.master.total, edu.bachelor.total, edu.associate.total],
-          backgroundColor: ['#932d16', '#7c3aed', '#2563eb', '#059669'],
+          backgroundColor: [brandColor(), '#7c3aed', '#2563eb', '#059669'],
           borderColor: '#ffffff',
           borderWidth: 2,
           hoverOffset: 4,

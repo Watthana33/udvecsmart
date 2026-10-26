@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ShieldCheck,
   Building2,
+  Workflow,
 } from 'lucide-react';
 
 interface UserMenuProps {
@@ -155,6 +156,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dve_career', label: 'ทวิภาคี & ห้องเรียนอาชีพ', icon: Cog }, // Award icon for DVE Career
     { id: 'employment', label: 'ภาวะการมีงานทำ', icon: Briefcase },
     { id: 'institutions', label: 'สถานศึกษาในสังกัด', icon: School },
+    { id: 'oic_structure', label: 'โครงสร้าง สอจ.', icon: Workflow },
     { id: 'contact', label: 'ติดต่อเรา', icon: Mail },
   ];
 

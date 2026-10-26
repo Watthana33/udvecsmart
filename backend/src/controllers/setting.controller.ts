@@ -599,8 +599,9 @@ export async function setCurrentAcademicPeriod(req: Request, res: Response): Pro
  * PUT /api/settings/appearance
  * ส่งมาเฉพาะ field ที่ต้องการแก้ได้ (field ที่ไม่ส่งจะไม่ถูกแตะ)
  */
-const SITE_THEMES = ['normal', 'province', 'mono', 'gray'];
+const SITE_THEMES = ['normal', 'province', 'custom', 'mono', 'gray'];
 const WELCOME_MODES = ['fullpage', 'modal'];
+const CUSTOM_COLOR_KEYS = ['primary', 'primaryDark', 'primaryDeep', 'primaryLight', 'primaryBg', 'navy'];
 
 export async function updateAppearanceSettings(req: Request, res: Response): Promise<void> {
   try {
@@ -615,6 +616,7 @@ export async function updateAppearanceSettings(req: Request, res: Response): Pro
       welcomeButtonText,
       welcomeBadgeEnabled,
       welcomeBadgeText,
+      customColors,
     } = req.body;
 
     const bad = (message: string): void => {
@@ -622,8 +624,31 @@ export async function updateAppearanceSettings(req: Request, res: Response): Pro
     };
 
     if (siteTheme !== undefined && !SITE_THEMES.includes(siteTheme)) {
-      bad('ธีมไม่ถูกต้อง (ต้องเป็น normal, province, mono หรือ gray)');
+      bad('ธีมไม่ถูกต้อง (ต้องเป็น normal, province, custom, mono หรือ gray)');
       return;
+    }
+    let customColorsJson: string | undefined;
+    if (customColors !== undefined) {
+      if (customColors === null) {
+        customColorsJson = '';
+      } else if (typeof customColors !== 'object' || Array.isArray(customColors)) {
+        bad('customColors ต้องเป็นออบเจ็กต์สี');
+        return;
+      } else {
+        const clean: Record<string, string> = {};
+        for (const [k, v] of Object.entries(customColors)) {
+          if (!CUSTOM_COLOR_KEYS.includes(k)) {
+            bad(`ไม่รู้จักจุดสี "${k}"`);
+            return;
+          }
+          if (typeof v !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(v)) {
+            bad(`สี "${k}" ต้องเป็นรหัสสีแบบ #RRGGBB`);
+            return;
+          }
+          clean[k] = v.toLowerCase();
+        }
+        customColorsJson = Object.keys(clean).length ? JSON.stringify(clean) : '';
+      }
     }
     if (welcomeMode !== undefined && !WELCOME_MODES.includes(welcomeMode)) {
       bad('รูปแบบหน้าข่าวสารไม่ถูกต้อง (ต้องเป็น fullpage หรือ modal)');
@@ -655,7 +680,8 @@ export async function updateAppearanceSettings(req: Request, res: Response): Pro
     }
 
     const entries: Array<[string, string, string]> = [];
-    if (siteTheme !== undefined) entries.push(['site_theme', siteTheme, 'ธีมสีเว็บไซต์ (normal = สีสอศ., province = สีจังหวัด, mono = ขาวดำ, gray = เทา)']);
+    if (siteTheme !== undefined) entries.push(['site_theme', siteTheme, 'ธีมสีเว็บไซต์ (normal = สีสอศ., province = สีจังหวัด, custom = ปรับแต่งเอง, mono = ขาวดำ, gray = เทา)']);
+    if (customColorsJson !== undefined) entries.push(['custom_colors', customColorsJson, 'สีของธีมปรับแต่งเอง (JSON รหัส #RRGGBB; ว่าง = ใช้สีเริ่มต้น)']);
     if (mourningRibbon !== undefined) entries.push(['mourning_ribbon', String(mourningRibbon), 'แสดงริบบิ้นไว้อาลัยมุมขวาบน']);
     if (welcomeEnabled !== undefined) entries.push(['welcome_enabled', String(welcomeEnabled), 'เปิดหน้าข่าวสารก่อนเข้าเว็บไซต์']);
     if (welcomeMode !== undefined) entries.push(['welcome_mode', welcomeMode, 'รูปแบบหน้าข่าวสาร (fullpage = เต็มหน้า, modal = การ์ดบังหน้าจอ)']);

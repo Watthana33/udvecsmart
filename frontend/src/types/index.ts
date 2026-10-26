@@ -138,7 +138,7 @@ export interface NewsItem {
   };
 }
 
-export type SiteTheme = 'normal' | 'province' | 'mono' | 'gray';
+export type SiteTheme = 'normal' | 'province' | 'custom' | 'mono' | 'gray';
 export type WelcomeMode = 'fullpage' | 'modal';
 
 export interface SiteSettings {
@@ -148,6 +148,7 @@ export interface SiteSettings {
   current_semester?: number;
   // รูปลักษณ์เว็บไซต์: ธีมไว้อาลัย & หน้าข่าวสารก่อนเข้าเว็บ
   site_theme?: SiteTheme;
+  custom_colors?: string; // JSON สีของธีมปรับแต่งเอง (ว่าง = สีเริ่มต้น)
   mourning_ribbon?: boolean;
   welcome_enabled?: boolean;
   welcome_mode?: WelcomeMode;
@@ -178,6 +179,7 @@ export interface SiteSettings {
 
 export interface AppearanceSettingsInput {
   siteTheme?: SiteTheme;
+  customColors?: Record<string, string> | null; // null = กลับไปใช้สีเริ่มต้น
   mourningRibbon?: boolean;
   welcomeEnabled?: boolean;
   welcomeMode?: WelcomeMode;

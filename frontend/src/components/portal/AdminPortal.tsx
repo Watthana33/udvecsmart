@@ -182,6 +182,53 @@ function usePersistedTab<T extends string>(key: string, allowed: readonly T[], f
   return [tab, setTab];
 }
 
+/** จำตำแหน่งเลื่อนหน้าจอของแต่ละแท็บ — รีเฟรชแล้วกลับมาที่การ์ด/จุดเดิม (รอเนื้อหาโหลดจนสูงพอก่อนค่อยเลื่อน ไม่เกิน 4 วินาที) */
+function usePersistedScroll(scope: string) {
+  useEffect(() => {
+    const key = `udpvecsmart:scroll:${scope}`;
+    let target = 0;
+    try {
+      target = Number(sessionStorage.getItem(key)) || 0;
+    } catch {
+      /* ใช้ sessionStorage ไม่ได้ก็ข้าม */
+    }
+    let restoring = target > 0;
+    let raf = 0;
+    const started = Date.now();
+    const tryRestore = () => {
+      if (!restoring) return;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max >= target || Date.now() - started > 4000) {
+        window.scrollTo({ top: Math.min(target, Math.max(max, 0)), behavior: 'instant' });
+        restoring = false;
+        return;
+      }
+      raf = requestAnimationFrame(tryRestore);
+    };
+    tryRestore();
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const save = () => {
+      try {
+        sessionStorage.setItem(key, String(Math.round(window.scrollY)));
+      } catch {
+        /* ใช้ sessionStorage ไม่ได้ก็ข้าม */
+      }
+    };
+    const onScroll = () => {
+      if (restoring) return;
+      clearTimeout(timer);
+      timer = setTimeout(save, 150);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [scope]);
+}
+
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   user,
   onRefreshStats,
@@ -246,7 +293,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // School Admin Portal Tab & Form Section Navigator
   const [schoolPortalTab, setSchoolPortalTab] = usePersistedTab('udpvecsmart:school-portal-tab', ['stats_form', 'news_view'] as const, 'stats_form');
-  const [activeFormSection, setActiveFormSection] = useState<'all' | 'general' | 'teachers' | 'grades' | 'dve' | 'career' | 'graduates'>('all');
+  const [activeFormSection, setActiveFormSection] = usePersistedTab('udpvecsmart:form-section', ['all', 'general', 'teachers', 'grades', 'dve', 'career', 'graduates'] as const, 'all');
+  usePersistedScroll(isSuperAdmin ? `super:${superAdminTab}` : `school:${schoolPortalTab}`);
 
   // ==========================================
   // SUPER ADMIN STATE: TAB 2 (ข่าวสาร & Carousel)

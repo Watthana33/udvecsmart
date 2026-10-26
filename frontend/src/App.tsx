@@ -20,6 +20,7 @@ import { AdminPortal } from './components/portal/AdminPortal';
 import { LoginModal } from './components/auth/LoginModal';
 import { WelcomeGate, resolveWelcomeBadge } from './components/appearance/WelcomeGate';
 import { MourningRibbon } from './components/appearance/MourningRibbon';
+import { applyCustomColors, parseCustomColors, CUSTOM_COLORS_CACHE_KEY } from './utils/themeColors';
 
 import {
   getStatsOverview,
@@ -97,8 +98,8 @@ function markWelcomeSeen(version: string) {
 // ใส่/ถอดคลาสธีมที่ <html> (สไตล์อยู่ใน index.css)
 function applySiteTheme(theme: string | undefined) {
   const root = document.documentElement;
-  root.classList.remove('theme-mono', 'theme-gray', 'theme-province');
-  if (theme === 'mono' || theme === 'gray' || theme === 'province') root.classList.add(`theme-${theme}`);
+  root.classList.remove('theme-mono', 'theme-gray', 'theme-province', 'theme-custom');
+  if (theme === 'mono' || theme === 'gray' || theme === 'province' || theme === 'custom') root.classList.add(`theme-${theme}`);
 }
 
 export function App() {
@@ -168,7 +169,10 @@ export function App() {
         setSiteSettings(data);
         const theme = data.site_theme || 'normal';
         applySiteTheme(theme);
+        const custom = theme === 'custom' ? parseCustomColors(data.custom_colors) : null;
+        applyCustomColors(custom);
         try {
+          localStorage.setItem(CUSTOM_COLORS_CACHE_KEY, custom ? JSON.stringify(custom) : '');
           localStorage.setItem(THEME_CACHE_KEY, theme);
         } catch {
           /* ใช้ localStorage ไม่ได้ก็ข้าม */

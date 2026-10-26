@@ -59,7 +59,7 @@ export const FacebookFeed: React.FC<FacebookFeedProps> = ({ pageUrl }) => {
       <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-hx-932d16/10 text-hx-932d16">
+            <div className="p-2.5 rounded-2xl bg-[#1877f2]/10 text-[#1877f2]">
               <Facebook className="w-6 h-6" />
             </div>
             <div>
